@@ -1,0 +1,115 @@
+const pool = require('../config/db');
+
+const listar = async (req, res) => {
+  try {
+    const { estado } = req.query;
+    const tieneEstado = estado && estado !== 'todos';
+    const sql = `
+      SELECT p.*,
+             uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido,
+             ur.nombre AS registrado_nombre
+      FROM pedidos p
+      JOIN usuarios uc ON p.cliente_id = uc.id
+      JOIN usuarios ur ON p.registrado_por = ur.id
+      ${tieneEstado ? 'WHERE p.estado = ?' : ''}
+      ORDER BY p.created_at DESC
+    `;
+    const [rows] = await pool.execute(sql, tieneEstado ? [estado] : []);
+    res.json({ pedidos: rows });
+  } catch (err) {
+    console.error('Error listando pedidos:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+};
+
+const crear = async (req, res) => {
+  try {
+    const {
+      cliente_id, tienda_origen, descripcion,
+      precio_producto, precio_envio, precio_total,
+      precio_venta, ganancia, moneda, estado,
+      fecha_compra, notas,
+    } = req.body;
+
+    const [result] = await pool.execute(
+      `INSERT INTO pedidos
+         (cliente_id, registrado_por, tienda_origen, descripcion,
+          precio_producto, precio_envio, precio_total, precio_venta,
+          ganancia, moneda, estado, fecha_compra, notas)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        cliente_id, req.user.id, tienda_origen, descripcion,
+        precio_producto, precio_envio || 0, precio_total,
+        precio_venta || 0, ganancia || 0, moneda || 'EUR',
+        estado || 'pendiente', fecha_compra, notas || null,
+      ]
+    );
+
+    const [rows] = await pool.execute(
+      `SELECT p.*, uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
+       FROM pedidos p JOIN usuarios uc ON p.cliente_id = uc.id
+       WHERE p.id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json({ pedido: rows[0] });
+  } catch (err) {
+    console.error('Error creando pedido:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+};
+
+const actualizar = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      cliente_id, tienda_origen, descripcion,
+      precio_producto, precio_envio, precio_total,
+      precio_venta, ganancia, moneda, estado,
+      fecha_compra, notas,
+    } = req.body;
+
+    const [check] = await pool.execute('SELECT id FROM pedidos WHERE id = ?', [id]);
+    if (check.length === 0) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+    await pool.execute(
+      `UPDATE pedidos SET
+         cliente_id=?, tienda_origen=?, descripcion=?,
+         precio_producto=?, precio_envio=?, precio_total=?,
+         precio_venta=?, ganancia=?, moneda=?, estado=?,
+         fecha_compra=?, notas=?
+       WHERE id = ?`,
+      [
+        cliente_id, tienda_origen, descripcion,
+        precio_producto, precio_envio || 0, precio_total,
+        precio_venta || 0, ganancia || 0, moneda || 'EUR',
+        estado, fecha_compra, notas || null, id,
+      ]
+    );
+
+    const [rows] = await pool.execute(
+      `SELECT p.*, uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
+       FROM pedidos p JOIN usuarios uc ON p.cliente_id = uc.id
+       WHERE p.id = ?`,
+      [id]
+    );
+    res.json({ pedido: rows[0] });
+  } catch (err) {
+    console.error('Error actualizando pedido:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+};
+
+const eliminar = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.execute('DELETE FROM pedidos WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Pedido no encontrado' });
+    res.json({ mensaje: 'Pedido eliminado' });
+  } catch (err) {
+    console.error('Error eliminando pedido:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+};
+
+module.exports = { listar, crear, actualizar, eliminar };

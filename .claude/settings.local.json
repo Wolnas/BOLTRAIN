@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql *)",
+      "Bash(npm install *)",
+      "Bash(npm approve-scripts *)",
+      "Bash(node_modules/.bin/vite build *)",
+      "Bash(timeout 5 node server.js)",
+      "Bash(chmod +x /mnt/data/BOLTRAIN/start.sh)",
+      "Bash(bash start.sh)",
+      "Bash(curl -s http://localhost:5000/api/health)",
+      "Bash(npx vite *)",
+      "Bash(node -e \"const s = require\\('/mnt/data/BOLTRAIN/server/server.js'\\); \")",
+      "Bash(node -e ' *)",
+      "Bash(timeout 3 node -e ' *)",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"testadmin2@boltrain.com\",\"password\":\"admin123\"}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); p=d.get\\('pedido',{}\\); print\\('Pedido creado:', p.get\\('id'\\), '|', p.get\\('descripcion'\\)\\)\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/register -H 'Content-Type: application/json' -d '{\"nombre\":\"Test\",\"apellido\":\"User\",\"email\":\"nuevo@test.com\",\"password\":\"123456\",\"pais\":\"Bolivia\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -sv -X POST http://localhost:5000/api/auth/register -H 'Content-Type: application/json' -d '{\"nombre\":\"Test\",\"apellido\":\"User\",\"email\":\"nuevo@test.com\",\"password\":\"123456\",\"pais\":\"Bolivia\"}')",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(pkill -f \"nodemon\")",
+      "Bash(node server.js)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(curl -s -X POST http://localhost:5173/api/auth/register -H 'Content-Type: application/json' -d '{\"nombre\":\"Ana\",\"apellido\":\"Test\",\"email\":\"anatest99@mail.com\",\"password\":\"123456\",\"pais\":\"Bolivia\"}')",
+      "Bash(curl -s -X POST http://localhost:5001/api/auth/register -H 'Content-Type: application/json' -d '{\"nombre\":\"Ana\",\"apellido\":\"Test\",\"email\":\"anatest99@mail.com\",\"password\":\"123456\",\"pais\":\"Bolivia\"}')",
+      "Bash(pkill -f \"node server\")"
+    ]
+  }
+}

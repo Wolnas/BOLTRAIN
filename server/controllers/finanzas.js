@@ -29,7 +29,7 @@ const resumen = async (req, res) => {
 
     // Paquetes (envíos) del mes (por fecha de creación / armado)
     const [paquetes] = await pool.execute(
-      `SELECT pk.id, pk.estado, pk.precio_envio_bolivia, pk.costo_envio_real,
+      `SELECT pk.id, pk.estado, pk.precio_envio_bolivia,
               pk.created_at, pk.fecha_entrega,
               uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
        FROM paquetes pk
@@ -45,9 +45,10 @@ const resumen = async (req, res) => {
     const totalCobrado   = pedidos.reduce((s, p) => s + num(p.precio_venta), 0);
     const gananciaProductos = pedidos.reduce((s, p) => s + num(p.ganancia), 0);
 
+    // La tabla paquetes no registra costo de envío: el resultado de envíos es
+    // lo cobrado a los clientes por el envío a Bolivia.
     const enviosCobrado = paquetes.reduce((s, p) => s + num(p.precio_envio_bolivia), 0);
-    const enviosCosto   = paquetes.reduce((s, p) => s + num(p.costo_envio_real), 0);
-    const resultadoEnvios = enviosCobrado - enviosCosto;
+    const resultadoEnvios = enviosCobrado;
 
     const balance = gananciaProductos + resultadoEnvios;
 
@@ -55,7 +56,7 @@ const resumen = async (req, res) => {
       periodo: { mes, anio },
       resumen: {
         totalInvertido, totalCobrado, gananciaProductos,
-        enviosCobrado, enviosCosto, resultadoEnvios, balance,
+        enviosCobrado, resultadoEnvios, balance,
       },
       pedidos,
       paquetes,
@@ -84,7 +85,7 @@ const balanceMensual = async (req, res) => {
         [mes, anio]
       );
       const [[env]] = await pool.execute(
-        `SELECT COALESCE(SUM(precio_envio_bolivia),0) - COALESCE(SUM(costo_envio_real),0) AS resultado
+        `SELECT COALESCE(SUM(precio_envio_bolivia),0) AS resultado
          FROM paquetes WHERE MONTH(created_at)=? AND YEAR(created_at)=?`,
         [mes, anio]
       );
@@ -114,7 +115,7 @@ const listarCompras = async (req, res) => {
        ORDER BY fecha DESC`,
       [mes, anio]
     );
-    const total = rows.reduce((s, c) => s + parseFloat(c.dolares_obtenidos || 0), 0);
+    const total = rows.reduce((s, c) => s + parseFloat(c.dolares || 0), 0);
     res.json({ compras: rows, totalDolares: total });
   } catch (err) {
     console.error('Error listando compras de dólares:', err);
@@ -124,14 +125,14 @@ const listarCompras = async (req, res) => {
 
 const crearCompra = async (req, res) => {
   try {
-    const { fecha, bolivianos, tipo_cambio, dolares_obtenidos, notas } = req.body;
-    if (!fecha || !bolivianos || !tipo_cambio || !dolares_obtenidos) {
+    const { fecha, bolivianos, tipo_cambio, dolares, notas } = req.body;
+    if (!fecha || !bolivianos || !tipo_cambio || !dolares) {
       return res.status(400).json({ error: 'Completa fecha, bolivianos, tipo de cambio y dólares' });
     }
     const [result] = await pool.execute(
-      `INSERT INTO compras_dolares (fecha, bolivianos, tipo_cambio, dolares_obtenidos, notas, registrado_por)
+      `INSERT INTO compras_dolares (fecha, bolivianos, tipo_cambio, dolares, notas, registrado_por)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [fecha, bolivianos, tipo_cambio, dolares_obtenidos, notas || null, req.user.id]
+      [fecha, bolivianos, tipo_cambio, dolares, notas || null, req.user.id]
     );
     const [rows] = await pool.execute('SELECT * FROM compras_dolares WHERE id = ?', [result.insertId]);
     res.status(201).json({ compra: rows[0] });

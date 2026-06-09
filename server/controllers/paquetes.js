@@ -29,11 +29,10 @@ const listar = async (req, res) => {
 
     // admin y trabajador: gestión. El trabajador no necesita precios de producto,
     // y este listado no los expone (solo descripción + envío a Bolivia).
-    const incluirCosto = rol === ROL.ADMIN ? ', pk.costo_envio_real' : '';
     const [rows] = await pool.execute(`
       SELECT pk.id, pk.cliente_id, pk.locutorio_id, pk.estado,
              pk.numero_seguimiento, pk.fecha_estimada, pk.fecha_entrega,
-             pk.precio_envio_bolivia, pk.notas_internas, pk.created_at${incluirCosto},
+             pk.precio_envio_bolivia, pk.notas_internas, pk.created_at,
              uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido,
              l.nombre AS locutorio_nombre, l.ciudad AS locutorio_ciudad,
              GROUP_CONCAT(p.descripcion ORDER BY p.id SEPARATOR '|||') AS pedidos_desc,
@@ -151,19 +150,18 @@ const actualizarEstado = async (req, res) => {
   }
 };
 
-/* Actualizar datos de envío (admin): costo real, precio cobrado, seguimiento */
+/* Actualizar datos de envío (admin): precio cobrado, seguimiento, fecha */
 const actualizarEnvio = async (req, res) => {
   try {
     const { id } = req.params;
-    const { precio_envio_bolivia, costo_envio_real, numero_seguimiento, fecha_estimada } = req.body;
+    const { precio_envio_bolivia, numero_seguimiento, fecha_estimada } = req.body;
     await pool.execute(
       `UPDATE paquetes SET
          precio_envio_bolivia = ?,
-         costo_envio_real = ?,
          numero_seguimiento = COALESCE(?, numero_seguimiento),
          fecha_estimada = COALESCE(?, fecha_estimada)
        WHERE id = ?`,
-      [precio_envio_bolivia || null, costo_envio_real || null, numero_seguimiento || null, fecha_estimada || null, id]
+      [precio_envio_bolivia || null, numero_seguimiento || null, fecha_estimada || null, id]
     );
     res.json({ mensaje: 'Envío actualizado' });
   } catch (err) {

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Download, Edit2, Trash2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { listarPedidos, crearPedido, actualizarPedido, eliminarPedido } from '../api/pedidos';
-import { listarClientes, listarLocutorios } from '../api/usuarios';
+import { listarClientes } from '../api/usuarios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -33,7 +33,7 @@ const LABEL_ESTADO = {
 };
 
 const FORM_VACIO = {
-  cliente_id: '', locutorio_id: '', tienda_origen: '', descripcion: '',
+  cliente_id: '', tienda_origen: '', descripcion: '',
   precio_producto: '', precio_envio: '', precio_venta: '',
   precio_cotizado_bob: '', tipo_cambio_aplicado: '',
   moneda: 'EUR', estado: 'pendiente',
@@ -102,7 +102,6 @@ export default function Pedidos() {
   const { usuario } = useAuth();
   const [pedidos, setPedidos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [locutorios, setLocutorios] = useState([]);
   const [filtro, setFiltro] = useState('todos');
   const [cargando, setCargando] = useState(true);
   const [modal, setModal] = useState(false);
@@ -142,9 +141,6 @@ export default function Pedidos() {
     listarClientes()
       .then(({ data }) => setUsuarios(data.usuarios))
       .catch(() => {});
-    listarLocutorios()
-      .then(({ data }) => setLocutorios(data.locutorios))
-      .catch(() => {});
   }, [cargar]);
 
   /* Abrir modal */
@@ -153,7 +149,6 @@ export default function Pedidos() {
       setEditando(pedido);
       setForm({
         cliente_id: pedido.cliente_id,
-        locutorio_id: pedido.locutorio_id || '',
         tienda_origen: pedido.tienda_origen,
         descripcion: pedido.descripcion,
         precio_producto: pedido.precio_producto,
@@ -231,7 +226,6 @@ export default function Pedidos() {
       Moneda: p.moneda,
       'Cotizado (Bs)': p.precio_cotizado_bob != null ? parseFloat(p.precio_cotizado_bob) : '',
       'Tipo Cambio': p.tipo_cambio_aplicado != null ? parseFloat(p.tipo_cambio_aplicado) : '',
-      Locutorio: p.locutorio_nombre || '',
       Estado: LABEL_ESTADO[p.estado],
       'Fecha Compra': p.fecha_compra?.split('T')[0] || '',
     }));
@@ -440,23 +434,6 @@ export default function Pedidos() {
                       <option key={u.id} value={u.id}>
                         {u.nombre} {u.apellido} — {u.pais}
                       </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Locutorio de recogida */}
-                <div>
-                  <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">
-                    Locutorio de Recogida <span className="normal-case text-crema/30">(opcional)</span>
-                  </label>
-                  <select
-                    value={form.locutorio_id}
-                    onChange={e => setForm(f => ({ ...f, locutorio_id: e.target.value }))}
-                    className="w-full bg-selva-dark border border-white/10 rounded-lg px-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none"
-                  >
-                    <option value="">Sin asignar</option>
-                    {locutorios.map(l => (
-                      <option key={l.id} value={l.id}>{l.nombre} — {l.ciudad}</option>
                     ))}
                   </select>
                 </div>

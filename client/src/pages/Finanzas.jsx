@@ -54,7 +54,7 @@ function ChartTooltip({ active, payload, label }) {
 /* ─── Formulario de compra de dólares ─── */
 function FormCompra({ onCreado }) {
   const hoy = new Date().toISOString().split('T')[0];
-  const [form, setForm] = useState({ fecha: hoy, bolivianos: '', tipo_cambio: '', dolares_obtenidos: '', notas: '' });
+  const [form, setForm] = useState({ fecha: hoy, bolivianos: '', tipo_cambio: '', dolares: '', notas: '' });
   const [enviando, setEnviando] = useState(false);
   const campo = (f) => (e) => setForm((s) => ({ ...s, [f]: e.target.value }));
 
@@ -65,9 +65,9 @@ function FormCompra({ onCreado }) {
     e.preventDefault();
     setEnviando(true);
     try {
-      await crearCompraDolares({ ...form, dolares_obtenidos: form.dolares_obtenidos || sugerido.toFixed(2) });
+      await crearCompraDolares({ ...form, dolares: form.dolares || sugerido.toFixed(2) });
       toast.success('Compra registrada');
-      setForm({ fecha: hoy, bolivianos: '', tipo_cambio: '', dolares_obtenidos: '', notas: '' });
+      setForm({ fecha: hoy, bolivianos: '', tipo_cambio: '', dolares: '', notas: '' });
       onCreado();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al registrar');
@@ -102,7 +102,7 @@ function FormCompra({ onCreado }) {
           <label className={labelCls}>Dólares</label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-400 text-sm">$</span>
-            <input type="number" min="0" step="0.01" placeholder={sugerido ? sugerido.toFixed(2) : '0.00'} value={form.dolares_obtenidos} onChange={campo('dolares_obtenidos')} className={`${inputCls} pl-7`} />
+            <input type="number" min="0" step="0.01" placeholder={sugerido ? sugerido.toFixed(2) : '0.00'} value={form.dolares} onChange={campo('dolares')} className={`${inputCls} pl-7`} />
           </div>
         </div>
       </div>
@@ -167,12 +167,11 @@ export default function Finanzas() {
     }));
     const envios = data.paquetes.map((p) => ({
       Cliente: `${p.cliente_nombre} ${p.cliente_apellido}`,
-      Cobrado: num(p.precio_envio_bolivia), Costo: num(p.costo_envio_real),
-      Resultado: num(p.precio_envio_bolivia) - num(p.costo_envio_real),
+      'Envío Bolivia': num(p.precio_envio_bolivia),
     }));
     const comprasX = compras.compras.map((c) => ({
       Fecha: c.fecha?.split('T')[0], Bolivianos: num(c.bolivianos), 'Tipo Cambio': num(c.tipo_cambio),
-      Dólares: num(c.dolares_obtenidos), Notas: c.notas || '',
+      Dólares: num(c.dolares), Notas: c.notas || '',
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pedidos), 'Productos');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(envios), 'Envíos');
@@ -276,10 +275,9 @@ export default function Finanzas() {
 
           {/* ── Sección 2: Ganancia Envíos ── */}
           <Seccion titulo="Ganancia de Envíos" icon={Send}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <MiniStat label="Cobrado a clientes" valor={r.enviosCobrado} color="#3b82f6" />
-              <MiniStat label="Costó enviar" valor={r.enviosCosto} color="#eab308" />
-              <MiniStat label="Resultado" valor={r.resultadoEnvios} color={r.resultadoEnvios >= 0 ? '#22c55e' : '#ef4444'} signo />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <MiniStat label="Cobrado por envíos a Bolivia" valor={r.enviosCobrado} color="#3b82f6" />
+              <MiniStat label="Resultado del mes" valor={r.resultadoEnvios} color={r.resultadoEnvios >= 0 ? '#22c55e' : '#ef4444'} signo />
             </div>
           </Seccion>
 
@@ -298,7 +296,7 @@ export default function Finanzas() {
                         <span className="font-body text-xs text-crema/40">{c.fecha?.split('T')[0]}</span>
                         <span className="font-body text-sm text-crema">Bs {num(c.bolivianos).toFixed(2)}</span>
                         <span className="font-body text-xs text-crema/40">× {num(c.tipo_cambio).toFixed(2)}</span>
-                        <span className="font-body text-sm font-semibold text-green-400">$ {num(c.dolares_obtenidos).toFixed(2)}</span>
+                        <span className="font-body text-sm font-semibold text-green-400">$ {num(c.dolares).toFixed(2)}</span>
                         {c.notas && <span className="font-body text-xs text-crema/30 hidden md:inline">· {c.notas}</span>}
                       </div>
                       <button onClick={async () => { await eliminarCompraDolares(c.id); cargar(); }}

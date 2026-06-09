@@ -13,13 +13,11 @@ const listar = async (req, res) => {
     if (ES_TRABAJADOR(req)) {
       // El trabajador no ve precios de productos ni ganancias.
       const sql = `
-        SELECT p.id, p.cliente_id, p.locutorio_id, p.tienda_origen, p.descripcion,
+        SELECT p.id, p.cliente_id, p.tienda_origen, p.descripcion,
                p.estado, p.fecha_compra, p.created_at,
-               uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido,
-               l.nombre AS locutorio_nombre, l.ciudad AS locutorio_ciudad
+               uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
         FROM pedidos p
         JOIN usuarios uc ON p.cliente_id = uc.id
-        LEFT JOIN locutorios l ON p.locutorio_id = l.id
         ${tieneEstado ? 'WHERE p.estado = ?' : ''}
         ORDER BY p.created_at DESC
       `;
@@ -30,12 +28,10 @@ const listar = async (req, res) => {
     const sql = `
       SELECT p.*,
              uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido,
-             ur.nombre AS registrado_nombre,
-             l.nombre AS locutorio_nombre, l.ciudad AS locutorio_ciudad
+             ur.nombre AS registrado_nombre
       FROM pedidos p
       JOIN usuarios uc ON p.cliente_id = uc.id
       JOIN usuarios ur ON p.registrado_por = ur.id
-      LEFT JOIN locutorios l ON p.locutorio_id = l.id
       ${tieneEstado ? 'WHERE p.estado = ?' : ''}
       ORDER BY p.created_at DESC
     `;
@@ -50,7 +46,7 @@ const listar = async (req, res) => {
 const crear = async (req, res) => {
   try {
     const {
-      cliente_id, locutorio_id, tienda_origen, descripcion,
+      cliente_id, tienda_origen, descripcion,
       precio_producto, precio_envio, precio_total,
       precio_venta, ganancia, moneda, estado,
       precio_cotizado_bob, tipo_cambio_aplicado,
@@ -59,13 +55,13 @@ const crear = async (req, res) => {
 
     const [result] = await pool.execute(
       `INSERT INTO pedidos
-         (cliente_id, locutorio_id, registrado_por, tienda_origen, descripcion,
+         (cliente_id, registrado_por, tienda_origen, descripcion,
           precio_producto, precio_envio, precio_total, precio_venta,
           ganancia, moneda, estado, precio_cotizado_bob, tipo_cambio_aplicado,
           fecha_compra, notas)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        cliente_id, locutorio_id || null, req.user.id, tienda_origen, descripcion,
+        cliente_id, req.user.id, tienda_origen, descripcion,
         precio_producto, precio_envio || 0, precio_total,
         precio_venta || 0, ganancia || 0, moneda || 'EUR',
         estado || 'pendiente', precio_cotizado_bob || null, tipo_cambio_aplicado || null,
@@ -91,7 +87,7 @@ const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      cliente_id, locutorio_id, tienda_origen, descripcion,
+      cliente_id, tienda_origen, descripcion,
       precio_producto, precio_envio, precio_total,
       precio_venta, ganancia, moneda, estado,
       precio_cotizado_bob, tipo_cambio_aplicado,
@@ -103,14 +99,14 @@ const actualizar = async (req, res) => {
 
     await pool.execute(
       `UPDATE pedidos SET
-         cliente_id=?, locutorio_id=?, tienda_origen=?, descripcion=?,
+         cliente_id=?, tienda_origen=?, descripcion=?,
          precio_producto=?, precio_envio=?, precio_total=?,
          precio_venta=?, ganancia=?, moneda=?, estado=?,
          precio_cotizado_bob=?, tipo_cambio_aplicado=?,
          fecha_compra=?, notas=?
        WHERE id = ?`,
       [
-        cliente_id, locutorio_id || null, tienda_origen, descripcion,
+        cliente_id, tienda_origen, descripcion,
         precio_producto, precio_envio || 0, precio_total,
         precio_venta || 0, ganancia || 0, moneda || 'EUR',
         estado, precio_cotizado_bob || null, tipo_cambio_aplicado || null,

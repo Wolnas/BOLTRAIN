@@ -26,13 +26,6 @@ SET @sql := IF(@col = 0,
   'SELECT 1');
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
-SET @col := (SELECT COUNT(*) FROM information_schema.columns
-             WHERE table_schema = DATABASE() AND table_name = 'pedidos' AND column_name = 'locutorio_id');
-SET @sql := IF(@col = 0,
-  'ALTER TABLE pedidos ADD COLUMN locutorio_id INT UNSIGNED NULL AFTER cliente_id',
-  'SELECT 1');
-PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
-
 -- 3. PAQUETES — nuevos estados (armando/enviado/entregado) + precios de envío a Bolivia
 --    Migramos los valores antiguos preservando el significado.
 ALTER TABLE paquetes
@@ -50,20 +43,13 @@ SET @sql := IF(@col = 0,
   'SELECT 1');
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
-SET @col := (SELECT COUNT(*) FROM information_schema.columns
-             WHERE table_schema = DATABASE() AND table_name = 'paquetes' AND column_name = 'costo_envio_real');
-SET @sql := IF(@col = 0,
-  'ALTER TABLE paquetes ADD COLUMN costo_envio_real DECIMAL(10,2) NULL AFTER precio_envio_bolivia',
-  'SELECT 1');
-PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
-
 -- 4. COMPRAS DE DÓLARES — registro de compras de divisa (módulo Finanzas)
 CREATE TABLE IF NOT EXISTS compras_dolares (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   fecha DATE NOT NULL,
   bolivianos DECIMAL(12,2) NOT NULL,
   tipo_cambio DECIMAL(10,4) NOT NULL,
-  dolares_obtenidos DECIMAL(12,2) NOT NULL,
+  dolares DECIMAL(12,2) NOT NULL,
   notas TEXT NULL,
   registrado_por INT UNSIGNED NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

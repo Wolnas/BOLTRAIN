@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Package, Truck, MapPin, Check, Plus, PackageCheck, Send, Boxes,
+  Package, Truck, MapPin, Check, Plus, PackageCheck, Send, Boxes, ShoppingBag,
 } from 'lucide-react';
 import { listarPedidos, cambiarEstadoPedido } from '../../api/pedidos';
 import { listarPaquetes, actualizarEstado } from '../../api/paquetes';
@@ -12,10 +12,12 @@ import toast from 'react-hot-toast';
 /* ══════════════ SECCIÓN 1 — Paquetes por Recoger (pedidos) ══════════════ */
 
 const RECOGER_CFG = {
+  pendiente:    { label: 'Registrado',             punto: '#9ca3af', cls: 'text-gray-300 border-gray-500/40 bg-gray-500/10',     pulse: null },
   en_transito:  { label: 'Viajando al locutorio', punto: '#3b82f6', cls: 'text-blue-300 border-blue-500/40 bg-blue-500/10',     pulse: 'pulse' },
   en_locutorio: { label: 'Listo para recoger',     punto: '#c9a84c', cls: 'text-dorado border-dorado/40 bg-dorado/10',           pulse: 'glow' },
   recogido:     { label: 'Recogido',               punto: '#22c55e', cls: 'text-green-300 border-green-500/40 bg-green-500/10',  pulse: null },
 };
+const RECOGER_ESTADOS = ['pendiente', 'en_transito', 'en_locutorio', 'recogido'];
 const RECOGER_TABS = [
   { key: 'todos', label: 'Todos' },
   { key: 'en_transito', label: 'En Tránsito' },
@@ -26,7 +28,7 @@ const RECOGER_TABS = [
 function CardRecoger({ pedido, onAvanzar }) {
   const [saliendo, setSaliendo] = useState(false);
   const [hechoCheck, setHechoCheck] = useState(false);
-  const cfg = RECOGER_CFG[pedido.estado] || RECOGER_CFG.en_transito;
+  const cfg = RECOGER_CFG[pedido.estado] || RECOGER_CFG.pendiente;
 
   const marcarRecogido = async () => {
     setHechoCheck(true);
@@ -77,10 +79,8 @@ function CardRecoger({ pedido, onAvanzar }) {
             {pedido.cliente_nombre} {pedido.cliente_apellido}
           </p>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <MapPin size={11} className="text-crema/40" />
-            <span className="font-body text-xs text-crema/40 truncate">
-              {pedido.locutorio_nombre ? `${pedido.locutorio_nombre} · ${pedido.locutorio_ciudad}` : 'Sin locutorio asignado'}
-            </span>
+            <ShoppingBag size={11} className="text-crema/40" />
+            <span className="font-body text-xs text-crema/40 truncate">{pedido.tienda_origen}</span>
           </div>
         </div>
         <span
@@ -105,16 +105,7 @@ function CardRecoger({ pedido, onAvanzar }) {
           {pedido.fecha_compra ? new Date(pedido.fecha_compra).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
         </span>
 
-        {pedido.estado === 'en_transito' && (
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            onClick={() => onAvanzar(pedido.id, 'en_locutorio')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-body text-xs font-medium text-blue-200 border border-blue-500/30 hover:bg-blue-500/10 transition-colors"
-          >
-            <MapPin size={13} /> Llegó al locutorio
-          </motion.button>
-        )}
-        {pedido.estado === 'en_locutorio' && (
+        {pedido.estado === 'en_locutorio' ? (
           <motion.button
             whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
             onClick={marcarRecogido}
@@ -123,11 +114,12 @@ function CardRecoger({ pedido, onAvanzar }) {
           >
             <PackageCheck size={13} /> Marcar como Recogido
           </motion.button>
-        )}
-        {pedido.estado === 'recogido' && (
+        ) : pedido.estado === 'recogido' ? (
           <span className="flex items-center gap-1.5 text-xs font-body text-green-400">
             <Check size={13} /> Completado
           </span>
+        ) : (
+          <span className="font-body text-xs text-crema/30">{cfg.label}</span>
         )}
       </div>
     </motion.div>
@@ -143,8 +135,8 @@ function SeccionRecoger() {
     setCargando(true);
     try {
       const { data } = await listarPedidos();
-      // Solo los pedidos relevantes para recogida
-      setPedidos(data.pedidos.filter((p) => ['en_transito', 'en_locutorio', 'recogido'].includes(p.estado)));
+      // Solo los pedidos relevantes para recogida (pendiente → recogido)
+      setPedidos(data.pedidos.filter((p) => RECOGER_ESTADOS.includes(p.estado)));
     } catch {
       toast.error('Error cargando pedidos');
     } finally {

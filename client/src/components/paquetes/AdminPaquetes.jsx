@@ -20,7 +20,6 @@ const TABS = [
 
 function ModalEnvio({ paquete, onCerrar, onGuardado }) {
   const [precio, setPrecio] = useState(paquete.precio_envio_bolivia ?? '');
-  const [costo, setCosto] = useState(paquete.costo_envio_real ?? '');
   const [seg, setSeg] = useState(paquete.numero_seguimiento ?? '');
   const [enviando, setEnviando] = useState(false);
 
@@ -29,7 +28,6 @@ function ModalEnvio({ paquete, onCerrar, onGuardado }) {
     try {
       await actualizarEnvio(paquete.id, {
         precio_envio_bolivia: precio || null,
-        costo_envio_real: costo || null,
         numero_seguimiento: seg || null,
       });
       toast.success('Envío actualizado');
@@ -63,14 +61,6 @@ function ModalEnvio({ paquete, onCerrar, onGuardado }) {
             </div>
           </div>
           <div>
-            <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">Costo real de envío</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-crema/40 text-sm">$</span>
-              <input type="number" min="0" step="0.01" value={costo} onChange={(e) => setCosto(e.target.value)}
-                className="w-full bg-selva-dark border border-white/10 rounded-lg pl-7 pr-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none" />
-            </div>
-          </div>
-          <div>
             <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">Nº Seguimiento</label>
             <input type="text" value={seg} onChange={(e) => setSeg(e.target.value)} placeholder="Opcional"
               className="w-full bg-selva-dark border border-white/10 rounded-lg px-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none placeholder:text-crema/20" />
@@ -90,8 +80,6 @@ function CardAdmin({ paquete, onEstado, onEliminar, onEnvio }) {
   const cfg = ESTADO_CFG[paquete.estado] || ESTADO_CFG.armando;
   const descripciones = paquete.pedidos_desc ? paquete.pedidos_desc.split('|||') : [];
   const cobrado = parseFloat(paquete.precio_envio_bolivia || 0);
-  const costo = parseFloat(paquete.costo_envio_real || 0);
-  const resultado = cobrado - costo;
 
   return (
     <motion.div layout variants={staggerItem} whileHover={{ y: -4 }}
@@ -122,17 +110,9 @@ function CardAdmin({ paquete, onEstado, onEliminar, onEnvio }) {
       <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg bg-white/3 border border-white/5">
         <div className="flex items-center gap-1.5">
           <DollarSign size={12} className="text-dorado" />
-          <span className="font-body text-xs text-crema/50">Cobrado ${cobrado.toFixed(2)}</span>
-          {costo > 0 && <span className="font-body text-xs text-crema/30">· costo ${costo.toFixed(2)}</span>}
+          <span className="font-body text-xs text-crema/50">Envío Bolivia: ${cobrado.toFixed(2)}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {(cobrado > 0 || costo > 0) && (
-            <span className={`font-body text-xs font-semibold ${resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {resultado >= 0 ? '+' : ''}${resultado.toFixed(2)}
-            </span>
-          )}
-          <button onClick={() => onEnvio(paquete)} className="p-1 text-crema/40 hover:text-dorado transition-colors"><Pencil size={12} /></button>
-        </div>
+        <button onClick={() => onEnvio(paquete)} className="p-1 text-crema/40 hover:text-dorado transition-colors"><Pencil size={12} /></button>
       </div>
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">

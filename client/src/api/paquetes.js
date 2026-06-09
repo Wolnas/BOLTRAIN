@@ -5,4 +5,5 @@ export const pedidosDisponibles = (clienteId) =>
   api.get(`/paquetes/pedidos-disponibles/${clienteId}`);
 export const crearPaquete = (datos) => api.post('/paquetes', datos);
 export const actualizarEstado = (id, datos) => api.put(`/paquetes/${id}/estado`, datos);
+export const actualizarEnvio = (id, datos) => api.put(`/paquetes/${id}/envio`, datos);
 export const eliminarPaquete = (id) => api.delete(`/paquetes/${id}`);

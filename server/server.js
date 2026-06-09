@@ -7,6 +7,7 @@ const pedidosRoutes = require('./routes/pedidos');
 const paquetesRoutes = require('./routes/paquetes');
 const usuariosRoutes = require('./routes/usuarios');
 const locutoriosRoutes = require('./routes/locutorios');
+const finanzasRoutes = require('./routes/finanzas');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -27,6 +28,7 @@ app.use('/api/pedidos',    pedidosRoutes);
 app.use('/api/paquetes',   paquetesRoutes);
 app.use('/api/usuarios',   usuariosRoutes);
 app.use('/api/locutorios', locutoriosRoutes);
+app.use('/api/finanzas',   finanzasRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'BOLTRAIN', timestamp: new Date().toISOString() });

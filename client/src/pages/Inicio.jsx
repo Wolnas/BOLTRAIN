@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Globe, Calendar, Shield, ShoppingBag, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const ROL_LABEL = { admin: 'Administrador', viewer: 'Visor' };
+const ROL_LABEL = { admin: 'Administrador', viewer: 'Cliente', trabajador: 'Trabajador' };
 const BANDERA = { España: '🇪🇸', Bolivia: '🇧🇴' };
 
 export default function Inicio() {

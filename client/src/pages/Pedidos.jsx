@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Download, Edit2, Trash2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { listarPedidos, crearPedido, actualizarPedido, eliminarPedido } from '../api/pedidos';
-import { listarClientes } from '../api/usuarios';
+import { listarClientes, listarLocutorios } from '../api/usuarios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 const ESTADOS = [
   { key: 'todos', label: 'Todos' },
   { key: 'pendiente', label: 'Pendiente' },
+  { key: 'en_transito', label: 'En Tránsito' },
   { key: 'en_locutorio', label: 'En Locutorio' },
   { key: 'recogido', label: 'Recogido' },
   { key: 'en_camino', label: 'En Camino' },
@@ -19,20 +20,22 @@ const ESTADOS = [
 
 const BADGE = {
   pendiente:    'bg-gray-500/20 text-gray-300 border-gray-500/30',
+  en_transito:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
   en_locutorio: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  recogido:     'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  recogido:     'bg-teal-500/20 text-teal-300 border-teal-500/30',
   en_camino:    'bg-orange-500/20 text-orange-300 border-orange-500/30',
   entregado:    'bg-green-500/20 text-green-300 border-green-500/30',
 };
 
 const LABEL_ESTADO = {
-  pendiente: 'Pendiente', en_locutorio: 'En Locutorio',
+  pendiente: 'Pendiente', en_transito: 'En Tránsito', en_locutorio: 'En Locutorio',
   recogido: 'Recogido', en_camino: 'En Camino', entregado: 'Entregado',
 };
 
 const FORM_VACIO = {
-  cliente_id: '', tienda_origen: '', descripcion: '',
+  cliente_id: '', locutorio_id: '', tienda_origen: '', descripcion: '',
   precio_producto: '', precio_envio: '', precio_venta: '',
+  precio_cotizado_bob: '', tipo_cambio_aplicado: '',
   moneda: 'EUR', estado: 'pendiente',
   fecha_compra: new Date().toISOString().split('T')[0], notas: '',
 };
@@ -99,6 +102,7 @@ export default function Pedidos() {
   const { usuario } = useAuth();
   const [pedidos, setPedidos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [locutorios, setLocutorios] = useState([]);
   const [filtro, setFiltro] = useState('todos');
   const [cargando, setCargando] = useState(true);
   const [modal, setModal] = useState(false);
@@ -109,6 +113,10 @@ export default function Pedidos() {
   /* Calculados en tiempo real */
   const precioTotal = parseFloat(form.precio_producto || 0) + parseFloat(form.precio_envio || 0);
   const ganancia = parseFloat(form.precio_venta || 0) - precioTotal;
+  /* Conversión BOB → USD en vivo */
+  const cotizadoBob = parseFloat(form.precio_cotizado_bob || 0);
+  const tipoCambio = parseFloat(form.tipo_cambio_aplicado || 0);
+  const cotizadoUsd = tipoCambio > 0 ? cotizadoBob / tipoCambio : 0;
 
   /* Stats */
   const totalInvertido = pedidos.reduce((s, p) => s + parseFloat(p.precio_total || 0), 0);
@@ -134,6 +142,9 @@ export default function Pedidos() {
     listarClientes()
       .then(({ data }) => setUsuarios(data.usuarios))
       .catch(() => {});
+    listarLocutorios()
+      .then(({ data }) => setLocutorios(data.locutorios))
+      .catch(() => {});
   }, [cargar]);
 
   /* Abrir modal */
@@ -142,11 +153,14 @@ export default function Pedidos() {
       setEditando(pedido);
       setForm({
         cliente_id: pedido.cliente_id,
+        locutorio_id: pedido.locutorio_id || '',
         tienda_origen: pedido.tienda_origen,
         descripcion: pedido.descripcion,
         precio_producto: pedido.precio_producto,
         precio_envio: pedido.precio_envio,
         precio_venta: pedido.precio_venta,
+        precio_cotizado_bob: pedido.precio_cotizado_bob ?? '',
+        tipo_cambio_aplicado: pedido.tipo_cambio_aplicado ?? '',
         moneda: pedido.moneda,
         estado: pedido.estado,
         fecha_compra: pedido.fecha_compra?.split('T')[0] || '',
@@ -215,6 +229,9 @@ export default function Pedidos() {
       'Precio Venta': parseFloat(p.precio_venta),
       Ganancia: parseFloat(p.ganancia),
       Moneda: p.moneda,
+      'Cotizado (Bs)': p.precio_cotizado_bob != null ? parseFloat(p.precio_cotizado_bob) : '',
+      'Tipo Cambio': p.tipo_cambio_aplicado != null ? parseFloat(p.tipo_cambio_aplicado) : '',
+      Locutorio: p.locutorio_nombre || '',
       Estado: LABEL_ESTADO[p.estado],
       'Fecha Compra': p.fecha_compra?.split('T')[0] || '',
     }));
@@ -427,6 +444,23 @@ export default function Pedidos() {
                   </select>
                 </div>
 
+                {/* Locutorio de recogida */}
+                <div>
+                  <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">
+                    Locutorio de Recogida <span className="normal-case text-crema/30">(opcional)</span>
+                  </label>
+                  <select
+                    value={form.locutorio_id}
+                    onChange={e => setForm(f => ({ ...f, locutorio_id: e.target.value }))}
+                    className="w-full bg-selva-dark border border-white/10 rounded-lg px-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none"
+                  >
+                    <option value="">Sin asignar</option>
+                    {locutorios.map(l => (
+                      <option key={l.id} value={l.id}>{l.nombre} — {l.ciudad}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Tienda */}
                 <Input
                   label="Tienda Origen"
@@ -530,6 +564,50 @@ export default function Pedidos() {
                         <option key={e.key} value={e.key}>{e.label}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+
+                {/* Cotización en Bolivianos */}
+                <div className="rounded-xl border border-dorado/15 bg-dorado/[0.03] p-4 space-y-3">
+                  <p className="font-body text-xs text-dorado/70 uppercase tracking-wider">Cotización al cliente (Bolivia)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">
+                        Precio Cotizado
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dorado font-body text-sm">Bs</span>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="0.00"
+                          value={form.precio_cotizado_bob}
+                          onChange={e => setForm(f => ({ ...f, precio_cotizado_bob: e.target.value }))}
+                          className="w-full bg-selva-dark border border-white/10 rounded-lg pl-9 pr-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none placeholder:text-crema/20"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">
+                        Tipo de Cambio
+                      </label>
+                      <input
+                        type="number" min="0" step="0.0001" placeholder="ej: 10.40"
+                        value={form.tipo_cambio_aplicado}
+                        onChange={e => setForm(f => ({ ...f, tipo_cambio_aplicado: e.target.value }))}
+                        className="w-full bg-selva-dark border border-white/10 rounded-lg px-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none placeholder:text-crema/20"
+                      />
+                    </div>
+                  </div>
+                  {/* USD en tiempo real */}
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="font-body text-sm text-crema/50">Equivale a:</span>
+                    <motion.span
+                      key={cotizadoUsd.toFixed(2)}
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="font-display text-lg font-bold text-dorado"
+                    >
+                      $ {cotizadoUsd.toFixed(2)} USD
+                    </motion.span>
                   </div>
                 </div>
 

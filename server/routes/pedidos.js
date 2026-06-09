@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const esAdmin = require('../middleware/esAdmin');
-const { listar, crear, actualizar, eliminar } = require('../controllers/pedidos');
+const roles = require('../middleware/roles');
+const { listar, crear, actualizar, cambiarEstado, eliminar } = require('../controllers/pedidos');
 
-router.get('/', auth, esAdmin, listar);
-router.post('/', auth, esAdmin, crear);
-router.put('/:id', auth, esAdmin, actualizar);
-router.delete('/:id', auth, esAdmin, eliminar);
+// admin (1) y trabajador (3) ven y cambian estado; solo admin crea/edita/borra
+router.get('/', auth, roles(1, 3), listar);
+router.post('/', auth, roles(1), crear);
+router.put('/:id', auth, roles(1), actualizar);
+router.patch('/:id/estado', auth, roles(1, 3), cambiarEstado);
+router.delete('/:id', auth, roles(1), eliminar);
 
 module.exports = router;

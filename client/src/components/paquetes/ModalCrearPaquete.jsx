@@ -1,21 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { X, Check, Package, Search } from 'lucide-react';
-import { pedidosDisponibles, crearPaquete } from '../../api/paquetes';
-import { listarClientes, listarLocutorios } from '../../api/usuarios';
+import { pedidosDisponiblesCliente, crearPaqueteCliente } from '../../api/paquetes';
+import { listarClientes } from '../../api/usuarios';
 import toast from 'react-hot-toast';
 import Caja3D from './Caja3D';
 
-/* Modal para armar un paquete para Bolivia.
-   `hidePrecios` oculta precios de producto (vista trabajador). */
+/* Modal para armar un Paquete de Cliente (caja rumbo a Bolivia con varios
+   pedidos dentro). `hidePrecios` oculta precios de producto (vista trabajador). */
 export default function ModalCrearPaquete({ onCerrar, onCreado, hidePrecios = false }) {
   const [clientes, setClientes] = useState([]);
-  const [locutorios, setLocutorios] = useState([]);
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clienteId, setClienteId] = useState('');
   const [pedidosLibres, setPedidosLibres] = useState([]);
   const [seleccionados, setSeleccionados] = useState([]);
-  const [locutorioId, setLocutorioId] = useState('');
   const [fechaEstimada, setFechaEstimada] = useState('');
   const [seguimiento, setSeguimiento] = useState('');
   const [precioEnvio, setPrecioEnvio] = useState('');
@@ -25,17 +23,16 @@ export default function ModalCrearPaquete({ onCerrar, onCreado, hidePrecios = fa
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      listarClientes().then(({ data }) => setClientes(data.usuarios)),
-      listarLocutorios().then(({ data }) => setLocutorios(data.locutorios)),
-    ]).catch(() => toast.error('Error cargando datos'));
+    listarClientes()
+      .then(({ data }) => setClientes(data.usuarios))
+      .catch(() => toast.error('Error cargando clientes'));
   }, []);
 
   useEffect(() => {
     if (!clienteId) { setPedidosLibres([]); setSeleccionados([]); return; }
     setCargandoPedidos(true);
     setSeleccionados([]);
-    pedidosDisponibles(clienteId)
+    pedidosDisponiblesCliente(clienteId)
       .then(({ data }) => setPedidosLibres(data.pedidos))
       .catch(() => toast.error('Error cargando pedidos'))
       .finally(() => setCargandoPedidos(false));
@@ -60,20 +57,18 @@ export default function ModalCrearPaquete({ onCerrar, onCreado, hidePrecios = fa
 
   const handleCrear = async () => {
     if (seleccionados.length === 0) return toast.error('Selecciona al menos un pedido');
-    if (!locutorioId) return toast.error('Selecciona un locutorio');
 
     setCerrandose(true);
     await new Promise((r) => setTimeout(r, 1100));
 
     setEnviando(true);
     try {
-      await crearPaquete({
+      await crearPaqueteCliente({
         cliente_id: clienteId,
-        locutorio_id: locutorioId,
         pedido_ids: seleccionados.map((p) => p.id),
         numero_seguimiento: seguimiento || null,
         fecha_estimada: fechaEstimada || null,
-        precio_envio_bolivia: precioEnvio || null,
+        precio_envio_bolivia: hidePrecios ? null : (precioEnvio || null),
         notas_internas: notas || null,
         estado: 'armando',
       });
@@ -89,9 +84,7 @@ export default function ModalCrearPaquete({ onCerrar, onCreado, hidePrecios = fa
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)' }}
       onClick={(e) => e.target === e.currentTarget && onCerrar()}
@@ -140,38 +133,21 @@ export default function ModalCrearPaquete({ onCerrar, onCreado, hidePrecios = fa
               </select>
             </div>
 
-            {/* Locutorio */}
-            <div>
-              <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">Locutorio en España</label>
-              {locutorios.length === 0 ? (
-                <p className="font-body text-xs text-crema/30 py-2">No hay locutorios registrados</p>
-              ) : (
-                <select
-                  value={locutorioId}
-                  onChange={(e) => setLocutorioId(e.target.value)}
-                  className="w-full bg-selva-dark border border-white/10 rounded-lg px-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none"
-                >
-                  <option value="">Seleccionar locutorio...</option>
-                  {locutorios.map((l) => (
-                    <option key={l.id} value={l.id}>{l.nombre} — {l.ciudad}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Precio envío Bolivia */}
-            <div>
-              <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">Precio Envío a Bolivia</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dorado font-body text-sm">$</span>
-                <input
-                  type="number" min="0" step="0.01" placeholder="0.00"
-                  value={precioEnvio}
-                  onChange={(e) => setPrecioEnvio(e.target.value)}
-                  className="w-full bg-selva-dark border border-white/10 rounded-lg pl-7 pr-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none placeholder:text-crema/20"
-                />
+            {/* Precio envío Bolivia (oculto para trabajador) */}
+            {!hidePrecios && (
+              <div>
+                <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">Precio Envío a Bolivia</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dorado font-body text-sm">$</span>
+                  <input
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    value={precioEnvio}
+                    onChange={(e) => setPrecioEnvio(e.target.value)}
+                    className="w-full bg-selva-dark border border-white/10 rounded-lg pl-7 pr-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none placeholder:text-crema/20"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -247,8 +223,8 @@ export default function ModalCrearPaquete({ onCerrar, onCreado, hidePrecios = fa
 
             <motion.button
               onClick={handleCrear}
-              disabled={seleccionados.length === 0 || !locutorioId || enviando}
-              whileHover={{ scale: seleccionados.length > 0 && locutorioId ? 1.02 : 1 }}
+              disabled={seleccionados.length === 0 || enviando}
+              whileHover={{ scale: seleccionados.length > 0 ? 1.02 : 1 }}
               whileTap={{ scale: 0.98 }}
               className="mt-6 w-full py-3 rounded-xl font-body font-semibold text-sm text-selva-dark transition-all disabled:opacity-40"
               style={{ background: 'linear-gradient(135deg,#c9a84c,#e8d5a3,#c9a84c)', backgroundSize: '200% auto' }}

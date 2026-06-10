@@ -27,12 +27,12 @@ const resumen = async (req, res) => {
       [mes, anio]
     );
 
-    // Paquetes (envíos) del mes (por fecha de creación / armado)
+    // Paquetes para Bolivia (envíos) del mes (por fecha de creación / armado)
     const [paquetes] = await pool.execute(
       `SELECT pk.id, pk.estado, pk.precio_envio_bolivia,
               pk.created_at, pk.fecha_entrega,
               uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
-       FROM paquetes pk
+       FROM paquetes_cliente pk
        JOIN usuarios uc ON pk.cliente_id = uc.id
        WHERE MONTH(pk.created_at) = ? AND YEAR(pk.created_at) = ?
        ORDER BY pk.created_at ASC`,
@@ -45,8 +45,8 @@ const resumen = async (req, res) => {
     const totalCobrado   = pedidos.reduce((s, p) => s + num(p.precio_venta), 0);
     const gananciaProductos = pedidos.reduce((s, p) => s + num(p.ganancia), 0);
 
-    // La tabla paquetes no registra costo de envío: el resultado de envíos es
-    // lo cobrado a los clientes por el envío a Bolivia.
+    // La tabla paquetes_cliente no registra costo de envío: el resultado de envíos
+    // es lo cobrado a los clientes por el envío a Bolivia.
     const enviosCobrado = paquetes.reduce((s, p) => s + num(p.precio_envio_bolivia), 0);
     const resultadoEnvios = enviosCobrado;
 
@@ -86,7 +86,7 @@ const balanceMensual = async (req, res) => {
       );
       const [[env]] = await pool.execute(
         `SELECT COALESCE(SUM(precio_envio_bolivia),0) AS resultado
-         FROM paquetes WHERE MONTH(created_at)=? AND YEAR(created_at)=?`,
+         FROM paquetes_cliente WHERE MONTH(created_at)=? AND YEAR(created_at)=?`,
         [mes, anio]
       );
 

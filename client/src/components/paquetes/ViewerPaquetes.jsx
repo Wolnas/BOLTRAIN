@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Package, Truck, Check, Clock } from 'lucide-react';
-import { listarPaquetes } from '../../api/paquetes';
+import { misPaquetesCliente } from '../../api/paquetes';
 import { PageWrapper, Spinner, VacioEstado, staggerContainer, staggerItem } from '../dashboard/ui';
 import toast from 'react-hot-toast';
 
@@ -110,7 +110,7 @@ export default function ViewerPaquetes() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const { data } = await listarPaquetes();
+      const { data } = await misPaquetesCliente();
       setPaquetes(data.paquetes);
     } catch {
       toast.error('Error cargando paquetes');

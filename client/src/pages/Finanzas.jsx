@@ -166,8 +166,10 @@ export default function Finanzas() {
       'Cotizado Bs': num(p.precio_cotizado_bob), 'Tipo Cambio': num(p.tipo_cambio_aplicado),
     }));
     const envios = data.paquetes.map((p) => ({
-      Cliente: `${p.cliente_nombre} ${p.cliente_apellido}`,
-      'Envío Bolivia': num(p.precio_envio_bolivia),
+      Caja: `#${p.id}`,
+      Clientes: Number(p.total_clientes || 0),
+      Estado: p.estado,
+      'Envío Bolivia': num(p.precio_envio_total),
     }));
     const comprasX = compras.compras.map((c) => ({
       Fecha: c.fecha?.split('T')[0], Bolivianos: num(c.bolivianos), 'Tipo Cambio': num(c.tipo_cambio),

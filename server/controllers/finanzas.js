@@ -29,12 +29,14 @@ const resumen = async (req, res) => {
 
     // Paquetes para Bolivia (envíos) del mes (por fecha de creación / armado)
     const [paquetes] = await pool.execute(
-      `SELECT pk.id, pk.estado, pk.precio_envio_bolivia,
+      `SELECT pk.id, pk.estado, pk.precio_envio_total,
               pk.created_at, pk.fecha_entrega,
-              uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
-       FROM paquetes_cliente pk
-       JOIN usuarios uc ON pk.cliente_id = uc.id
+              COUNT(DISTINCT p.cliente_id) AS total_clientes
+       FROM paquetes_bolivia pk
+       LEFT JOIN paquete_bolivia_pedidos pbp ON pk.id = pbp.paquete_bolivia_id
+       LEFT JOIN pedidos p ON pbp.pedido_id = p.id
        WHERE MONTH(pk.created_at) = ? AND YEAR(pk.created_at) = ?
+       GROUP BY pk.id
        ORDER BY pk.created_at ASC`,
       [mes, anio]
     );
@@ -45,9 +47,9 @@ const resumen = async (req, res) => {
     const totalCobrado   = pedidos.reduce((s, p) => s + num(p.precio_venta), 0);
     const gananciaProductos = pedidos.reduce((s, p) => s + num(p.ganancia), 0);
 
-    // La tabla paquetes_cliente no registra costo de envío: el resultado de envíos
-    // es lo cobrado a los clientes por el envío a Bolivia.
-    const enviosCobrado = paquetes.reduce((s, p) => s + num(p.precio_envio_bolivia), 0);
+    // La tabla paquetes_bolivia no registra costo de envío: el resultado de envíos
+    // es lo cobrado por el envío a Bolivia (precio total de cada caja).
+    const enviosCobrado = paquetes.reduce((s, p) => s + num(p.precio_envio_total), 0);
     const resultadoEnvios = enviosCobrado;
 
     const balance = gananciaProductos + resultadoEnvios;
@@ -85,8 +87,8 @@ const balanceMensual = async (req, res) => {
         [mes, anio]
       );
       const [[env]] = await pool.execute(
-        `SELECT COALESCE(SUM(precio_envio_bolivia),0) AS resultado
-         FROM paquetes_cliente WHERE MONTH(created_at)=? AND YEAR(created_at)=?`,
+        `SELECT COALESCE(SUM(precio_envio_total),0) AS resultado
+         FROM paquetes_bolivia WHERE MONTH(created_at)=? AND YEAR(created_at)=?`,
         [mes, anio]
       );
 

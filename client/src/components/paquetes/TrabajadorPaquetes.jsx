@@ -1,32 +1,40 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Package, Truck, MapPin, Check, Plus, PackageCheck, Send, Boxes, ShoppingBag, Calendar,
+  Package, Truck, Check, Plus, PackageCheck, Send, Boxes, ShoppingBag, Calendar, Warehouse, Users,
 } from 'lucide-react';
 import {
   listarPaquetesTienda, actualizarEstadoTienda,
-  listarPaquetesCliente, actualizarEstadoCliente,
+  listarPaquetesBolivia, actualizarEstadoBolivia,
 } from '../../api/paquetes';
 import { PageWrapper, Spinner, VacioEstado, Tabs, staggerContainer, staggerItem } from '../dashboard/ui';
-import { TIENDA_CFG, TIENDA_TABS, CLIENTE_CFG, CLIENTE_TABS, pulseStyle } from './estados';
-import ModalCrearPaquete from './ModalCrearPaquete';
+import { TIENDA_CFG, WAREHOUSE_TABS, BOLIVIA_CFG, BOLIVIA_TABS, pulseStyle } from './estados';
+import ModalCrearBolivia from './ModalCrearBolivia';
 import toast from 'react-hot-toast';
 
 const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
-/* ══════════════ SECCIÓN 1 — Por Recoger en España (paquetes_tienda) ══════════════ */
+/* ══════════════ SECCIÓN 1 — Paquetes en Warehouse (paquetes_tienda) ══════════════ */
 
-function CardRecoger({ paquete, onRecogido }) {
+function CardWarehouse({ paquete, onAvanzar }) {
   const [saliendo, setSaliendo] = useState(false);
   const [hechoCheck, setHechoCheck] = useState(false);
-  const cfg = TIENDA_CFG[paquete.estado] || TIENDA_CFG.en_transito;
+  const cfg = TIENDA_CFG[paquete.estado] || TIENDA_CFG.en_camino;
 
-  const marcarRecogido = async () => {
+  // en_camino → en_warehouse ; en_warehouse → enviado_bolivia (recogido)
+  const accion = paquete.estado === 'en_camino'
+    ? { estado: 'en_warehouse', texto: 'Marcar en Warehouse', desliza: true }
+    : paquete.estado === 'en_warehouse'
+    ? { estado: 'enviado_bolivia', texto: 'Marcar Recogido', desliza: true }
+    : null;
+
+  const ejecutar = async () => {
+    if (!accion) return;
     setHechoCheck(true);
     await new Promise((r) => setTimeout(r, 650));
     setSaliendo(true);
     await new Promise((r) => setTimeout(r, 350));
-    onRecogido(paquete.id);
+    onAvanzar(paquete.id, accion.estado);
   };
 
   return (
@@ -57,21 +65,15 @@ function CardRecoger({ paquete, onRecogido }) {
       </AnimatePresence>
 
       <div className="flex items-start justify-between mb-3">
-        <div className="min-w-0">
-          <p className="font-body text-sm font-semibold text-crema truncate">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <MapPin size={11} className="text-dorado" />
-            <span className="font-body text-xs text-crema/45 truncate">{paquete.locutorio_nombre} · {paquete.locutorio_ciudad}</span>
-          </div>
-        </div>
+        <p className="font-body text-sm font-semibold text-crema truncate min-w-0">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
         <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-body font-medium border ${cfg.cls}`} style={pulseStyle(cfg.pulse)}>{cfg.label}</span>
       </div>
 
+      {/* Contenido (sin locutorio ni precios) */}
       <div className="flex items-start gap-2 mb-3">
         <span className="text-sm">📦</span>
         <span className="font-body text-sm text-crema/75">{paquete.descripcion}</span>
       </div>
-
       <div className="flex items-center gap-1.5 mb-4 text-crema/40">
         <ShoppingBag size={11} />
         <span className="font-body text-xs">{paquete.tienda_origen}</span>
@@ -79,26 +81,23 @@ function CardRecoger({ paquete, onRecogido }) {
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">
         <span className="font-body text-xs text-crema/40 flex items-center gap-1">
-          {paquete.fecha_estimada_locutorio && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_locutorio)}</>}
+          {paquete.fecha_estimada_llegada && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_llegada)}</>}
         </span>
-
-        {paquete.estado === 'en_locutorio' ? (
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={marcarRecogido}
+        {accion ? (
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={ejecutar}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-body text-xs font-semibold text-selva-dark"
             style={{ background: 'linear-gradient(135deg,#c9a84c,#e8d5a3,#c9a84c)', backgroundSize: '200% auto' }}>
-            <PackageCheck size={13} /> Marcar como Recogido
+            {paquete.estado === 'en_camino' ? <Warehouse size={13} /> : <PackageCheck size={13} />} {accion.texto}
           </motion.button>
-        ) : paquete.estado === 'recogido' ? (
-          <span className="flex items-center gap-1.5 text-xs font-body text-green-400"><Check size={13} /> Recogido</span>
         ) : (
-          <span className="font-body text-xs text-crema/30">{cfg.label}</span>
+          <span className="flex items-center gap-1.5 text-xs font-body text-green-400"><Check size={13} /> {cfg.label}</span>
         )}
       </div>
     </motion.div>
   );
 }
 
-function SeccionRecoger() {
+function SeccionWarehouse() {
   const [paquetes, setPaquetes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todos');
@@ -114,11 +113,11 @@ function SeccionRecoger() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const recoger = useCallback(async (id) => {
+  const avanzar = useCallback(async (id, estado) => {
     try {
-      await actualizarEstadoTienda(id, { estado: 'recogido' });
-      setPaquetes((prev) => prev.map((p) => (p.id === id ? { ...p, estado: 'recogido' } : p)));
-      toast.success('Paquete recogido');
+      await actualizarEstadoTienda(id, { estado });
+      setPaquetes((prev) => prev.map((p) => (p.id === id ? { ...p, estado } : p)));
+      toast.success(estado === 'en_warehouse' ? 'Marcado en warehouse' : 'Marcado como recogido');
     } catch {
       toast.error('Error al actualizar');
       cargar();
@@ -127,23 +126,28 @@ function SeccionRecoger() {
 
   const conteos = useMemo(() => ({
     todos: paquetes.length,
-    en_transito: paquetes.filter((p) => p.estado === 'en_transito').length,
-    en_locutorio: paquetes.filter((p) => p.estado === 'en_locutorio').length,
-    recogido: paquetes.filter((p) => p.estado === 'recogido').length,
+    en_camino: paquetes.filter((p) => p.estado === 'en_camino').length,
+    en_warehouse: paquetes.filter((p) => p.estado === 'en_warehouse').length,
+    recogidos: paquetes.filter((p) => p.estado === 'enviado_bolivia' || p.estado === 'entregado').length,
   }), [paquetes]);
 
-  const visibles = filtro === 'todos' ? paquetes : paquetes.filter((p) => p.estado === filtro);
-  const tabs = TIENDA_TABS.map((t) => ({ ...t, count: conteos[t.key] }));
+  const visibles = useMemo(() => {
+    if (filtro === 'todos') return paquetes;
+    if (filtro === 'recogidos') return paquetes.filter((p) => p.estado === 'enviado_bolivia' || p.estado === 'entregado');
+    return paquetes.filter((p) => p.estado === filtro);
+  }, [paquetes, filtro]);
+
+  const tabs = WAREHOUSE_TABS.map((t) => ({ ...t, count: conteos[t.key] }));
 
   return (
     <div>
       <Tabs tabs={tabs} activo={filtro} onChange={setFiltro} />
       {cargando ? <Spinner /> : visibles.length === 0 ? (
-        <VacioEstado icono={<Truck size={44} strokeWidth={1} />} titulo="Nada por aquí" texto="No hay paquetes en este estado." />
+        <VacioEstado icono={<Warehouse size={44} strokeWidth={1} />} titulo="Nada por aquí" texto="No hay paquetes en este estado." />
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <AnimatePresence>
-            {visibles.map((p) => <CardRecoger key={p.id} paquete={p} onRecogido={recoger} />)}
+            {visibles.map((p) => <CardWarehouse key={p.id} paquete={p} onAvanzar={avanzar} />)}
           </AnimatePresence>
         </motion.div>
       )}
@@ -151,51 +155,57 @@ function SeccionRecoger() {
   );
 }
 
-/* ══════════════ SECCIÓN 2 — Armar Paquetes para Bolivia (paquetes_cliente) ══════════════ */
+/* ══════════════ SECCIÓN 2 — Armar Cajas para Bolivia (paquetes_bolivia) ══════════════ */
 
-const ICON_CLIENTE = { armando: Boxes, enviado: Send, entregado: PackageCheck };
+const ICON_BOLIVIA = { armando: Boxes, enviado: Send, entregado: PackageCheck };
 
-function CardBolivia({ paquete, onAvanzar }) {
-  const cfg = CLIENTE_CFG[paquete.estado] || CLIENTE_CFG.armando;
-  const descripciones = paquete.pedidos_desc ? paquete.pedidos_desc.split('|||') : [];
-  const Icon = ICON_CLIENTE[paquete.estado] || Boxes;
+function CardCaja({ caja, onAvanzar }) {
+  const cfg = BOLIVIA_CFG[caja.estado] || BOLIVIA_CFG.armando;
+  const contenido = caja.contenido ? caja.contenido.split('|||') : [];
+  const Icon = ICON_BOLIVIA[caja.estado] || Boxes;
 
   return (
     <motion.div layout variants={staggerItem} whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 300, damping: 26 }}
       className="glass-card rounded-2xl p-5" style={{ borderLeft: '3px solid #c9a84c' }}>
       <div className="flex items-start justify-between mb-3">
-        <p className="font-body text-sm font-semibold text-crema truncate min-w-0">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
+        <div className="min-w-0">
+          <p className="font-body text-sm font-semibold text-crema flex items-center gap-1.5"><Boxes size={14} className="text-dorado" /> Caja #{caja.id}</p>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="font-body text-xs text-crema/40 flex items-center gap-1"><Package size={11} /> {caja.total_pedidos}</span>
+            <span className="font-body text-xs text-crema/40 flex items-center gap-1"><Users size={11} /> {caja.total_clientes}</span>
+          </div>
+        </div>
         <span className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-body font-medium border ${cfg.cls}`} style={pulseStyle(cfg.pulse)}>
           <Icon size={11} /> {cfg.label}
         </span>
       </div>
 
       <div className="space-y-1.5 mb-4">
-        {descripciones.slice(0, 3).map((d, i) => (
-          <div key={i} className="flex items-center gap-2"><span className="text-xs">📦</span><span className="font-body text-xs text-crema/60 truncate">{d}</span></div>
+        {contenido.slice(0, 3).map((c, i) => (
+          <div key={i} className="flex items-center gap-2"><span className="text-xs">📦</span><span className="font-body text-xs text-crema/60 truncate">{c}</span></div>
         ))}
-        {descripciones.length > 3 && <p className="font-body text-xs text-crema/30 pl-5">+{descripciones.length - 3} más</p>}
+        {contenido.length > 3 && <p className="font-body text-xs text-crema/30 pl-5">+{contenido.length - 3} más</p>}
       </div>
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">
-        <span className="font-body text-xs text-crema/40">{paquete.total_pedidos} item{paquete.total_pedidos === '1' ? '' : 's'}</span>
+        <span className="font-body text-xs text-crema/40">{fmtFecha(caja.fecha_estimada) || (caja.numero_seguimiento || '')}</span>
         {cfg.siguiente ? (
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => onAvanzar(paquete.id, cfg.siguiente.estado)}
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => onAvanzar(caja.id, cfg.siguiente.estado)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-body text-xs font-semibold text-selva-dark"
             style={{ background: 'linear-gradient(135deg,#c9a84c,#e8d5a3,#c9a84c)', backgroundSize: '200% auto' }}>
             {cfg.siguiente.texto}
           </motion.button>
         ) : (
-          <span className="flex items-center gap-1.5 text-xs font-body text-green-400"><Check size={13} /> Entregado</span>
+          <span className="flex items-center gap-1.5 text-xs font-body text-green-400"><Check size={13} /> Entregada</span>
         )}
       </div>
     </motion.div>
   );
 }
 
-function SeccionBolivia() {
-  const [paquetes, setPaquetes] = useState([]);
+function SeccionCajas() {
+  const [cajas, setCajas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todos');
   const [modal, setModal] = useState(false);
@@ -203,9 +213,9 @@ function SeccionBolivia() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const { data } = await listarPaquetesCliente();
-      setPaquetes(data.paquetes);
-    } catch { toast.error('Error cargando paquetes'); }
+      const { data } = await listarPaquetesBolivia();
+      setCajas(data.paquetes);
+    } catch { toast.error('Error cargando cajas'); }
     finally { setCargando(false); }
   }, []);
 
@@ -213,21 +223,21 @@ function SeccionBolivia() {
 
   const avanzar = useCallback(async (id, estado) => {
     try {
-      await actualizarEstadoCliente(id, { estado });
-      setPaquetes((prev) => prev.map((p) => (p.id === id ? { ...p, estado } : p)));
+      await actualizarEstadoBolivia(id, { estado });
+      setCajas((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)));
       toast.success('Estado actualizado');
     } catch { toast.error('Error al actualizar'); }
   }, []);
 
   const conteos = useMemo(() => ({
-    todos: paquetes.length,
-    armando: paquetes.filter((p) => p.estado === 'armando').length,
-    enviado: paquetes.filter((p) => p.estado === 'enviado').length,
-    entregado: paquetes.filter((p) => p.estado === 'entregado').length,
-  }), [paquetes]);
+    todos: cajas.length,
+    armando: cajas.filter((c) => c.estado === 'armando').length,
+    enviado: cajas.filter((c) => c.estado === 'enviado').length,
+    entregado: cajas.filter((c) => c.estado === 'entregado').length,
+  }), [cajas]);
 
-  const visibles = filtro === 'todos' ? paquetes : paquetes.filter((p) => p.estado === filtro);
-  const tabs = CLIENTE_TABS.map((t) => ({ ...t, count: conteos[t.key] }));
+  const visibles = filtro === 'todos' ? cajas : cajas.filter((c) => c.estado === filtro);
+  const tabs = BOLIVIA_TABS.map((t) => ({ ...t, count: conteos[t.key] }));
 
   return (
     <div>
@@ -236,22 +246,22 @@ function SeccionBolivia() {
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setModal(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl font-body text-sm font-semibold text-selva-dark shrink-0"
           style={{ background: 'linear-gradient(135deg,#c9a84c,#e8d5a3,#c9a84c)', backgroundSize: '200% auto' }}>
-          <Plus size={15} /> Armar Paquete
+          <Plus size={15} /> Nueva Caja
         </motion.button>
       </div>
 
       {cargando ? <Spinner /> : visibles.length === 0 ? (
-        <VacioEstado icono={<Package size={44} strokeWidth={1} />} titulo="Sin paquetes" texto="Arma el primer paquete para un cliente." />
+        <VacioEstado icono={<Boxes size={44} strokeWidth={1} />} titulo="Sin cajas" texto="Arma la primera caja para Bolivia." />
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <AnimatePresence>
-            {visibles.map((p) => <CardBolivia key={p.id} paquete={p} onAvanzar={avanzar} />)}
+            {visibles.map((c) => <CardCaja key={c.id} caja={c} onAvanzar={avanzar} />)}
           </AnimatePresence>
         </motion.div>
       )}
 
       <AnimatePresence>
-        {modal && <ModalCrearPaquete hidePrecios onCerrar={() => setModal(false)} onCreado={() => { setModal(false); cargar(); }} />}
+        {modal && <ModalCrearBolivia hidePrecios onCerrar={() => setModal(false)} onCreado={() => { setModal(false); cargar(); }} />}
       </AnimatePresence>
     </div>
   );
@@ -260,19 +270,19 @@ function SeccionBolivia() {
 /* ══════════════ Contenedor con las dos secciones ══════════════ */
 
 export default function TrabajadorPaquetes() {
-  const [seccion, setSeccion] = useState('recoger');
+  const [seccion, setSeccion] = useState('warehouse');
 
   return (
     <PageWrapper className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="font-display text-3xl font-bold text-crema">Paquetes</h1>
-        <p className="font-body text-sm text-crema/50 mt-0.5">Gestión de paquetes en España</p>
+        <p className="font-body text-sm text-crema/50 mt-0.5">Gestión del warehouse en España</p>
       </div>
 
       <div className="flex gap-1 mb-7 bg-selva-dark/60 p-1 rounded-xl w-fit">
         {[
-          { key: 'recoger', label: 'Por Recoger en España', icon: Truck },
-          { key: 'bolivia', label: 'Armar para Bolivia', icon: Send },
+          { key: 'warehouse', label: 'Paquetes en Warehouse', icon: Warehouse },
+          { key: 'cajas', label: 'Armar Cajas para Bolivia', icon: Send },
         ].map((s) => {
           const Icon = s.icon;
           const active = seccion === s.key;
@@ -288,7 +298,7 @@ export default function TrabajadorPaquetes() {
 
       <AnimatePresence mode="wait">
         <motion.div key={seccion} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
-          {seccion === 'recoger' ? <SeccionRecoger /> : <SeccionBolivia />}
+          {seccion === 'warehouse' ? <SeccionWarehouse /> : <SeccionCajas />}
         </motion.div>
       </AnimatePresence>
     </PageWrapper>

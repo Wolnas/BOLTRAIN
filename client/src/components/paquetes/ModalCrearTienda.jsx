@@ -18,7 +18,7 @@ export default function ModalCrearTienda({ onCerrar, onCreado, hidePrecios = fal
   const [pedidos, setPedidos] = useState([]);
   const [pedidoId, setPedidoId] = useState('');
   const [locutorioId, setLocutorioId] = useState('');
-  const [estado, setEstado] = useState('en_transito');
+  const [estado, setEstado] = useState('en_camino');
   const [fechaEstimada, setFechaEstimada] = useState('');
   const [seguimiento, setSeguimiento] = useState('');
   const [notas, setNotas] = useState('');
@@ -59,10 +59,11 @@ export default function ModalCrearTienda({ onCerrar, onCreado, hidePrecios = fal
     setEnviando(true);
     try {
       await crearPaqueteTienda({
+        cliente_id: clienteId,
         pedido_id: pedidoId,
         locutorio_id: locutorioId,
         estado,
-        fecha_estimada_locutorio: fechaEstimada || null,
+        fecha_estimada_llegada: fechaEstimada || null,
         numero_seguimiento: seguimiento || null,
         notas_internas: notas || null,
       });
@@ -172,8 +173,8 @@ export default function ModalCrearTienda({ onCerrar, onCreado, hidePrecios = fal
             <label className="block text-xs text-crema/50 font-body uppercase tracking-wider mb-1.5">4 · Estado inicial</label>
             <select value={estado} onChange={(e) => setEstado(e.target.value)}
               className="w-full bg-selva-dark border border-white/10 rounded-lg px-3 py-2 text-crema font-body text-sm focus:border-dorado/50 focus:outline-none">
-              <option value="en_transito">En tránsito</option>
-              <option value="en_locutorio">En locutorio</option>
+              <option value="en_camino">En camino</option>
+              <option value="en_warehouse">En warehouse</option>
             </select>
           </div>
           <div>

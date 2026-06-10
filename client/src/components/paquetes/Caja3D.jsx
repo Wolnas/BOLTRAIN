@@ -59,7 +59,7 @@ export default function Caja3D({ items, cerrandose }) {
                   >
                     <span>📦</span>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                      {item.descripcion}
+                      {item.cliente_nombre ? `${item.cliente_nombre} · ` : ''}{item.descripcion}
                     </span>
                   </motion.div>
                 ))}

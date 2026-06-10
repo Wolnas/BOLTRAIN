@@ -1,22 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, MapPin, Truck, Package, ShoppingBag, Store, Boxes, Calendar } from 'lucide-react';
+import { Plus, X, Truck, Package, ShoppingBag, Store, Boxes, Calendar, Users, Eye } from 'lucide-react';
 import {
   listarPaquetesTienda, actualizarEstadoTienda, eliminarPaqueteTienda,
-  listarPaquetesCliente, actualizarEstadoCliente, eliminarPaqueteCliente,
+  listarPaquetesBolivia, actualizarEstadoBolivia, eliminarPaqueteBolivia,
 } from '../../api/paquetes';
 import { PageWrapper, Spinner, VacioEstado, Tabs, staggerContainer, staggerItem } from '../dashboard/ui';
-import { TIENDA_CFG, TIENDA_TABS, CLIENTE_CFG, CLIENTE_TABS, pulseStyle } from './estados';
+import { TIENDA_CFG, TIENDA_TABS, BOLIVIA_CFG, BOLIVIA_TABS, pulseStyle } from './estados';
 import ModalCrearTienda from './ModalCrearTienda';
-import ModalCrearPaquete from './ModalCrearPaquete';
+import ModalCrearBolivia from './ModalCrearBolivia';
+import TimelinePedido from './TimelinePedido';
 import toast from 'react-hot-toast';
 
 const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : null;
 
-/* ══════════════ TAB 1 — Paquetes de Tiendas ══════════════ */
+/* ══════════════ TAB 1 — Paquetes de Tienda ══════════════ */
 
 function CardTienda({ paquete, onEstado, onEliminar }) {
-  const cfg = TIENDA_CFG[paquete.estado] || TIENDA_CFG.en_transito;
+  const cfg = TIENDA_CFG[paquete.estado] || TIENDA_CFG.en_camino;
   return (
     <motion.div layout variants={staggerItem} whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 300, damping: 26 }}
@@ -40,20 +41,16 @@ function CardTienda({ paquete, onEstado, onEliminar }) {
         <span className="font-body text-sm text-crema/75">{paquete.descripcion}</span>
       </div>
 
-      <div className="flex items-center gap-1.5 mb-3 text-crema/45">
-        <MapPin size={12} className="text-dorado" />
-        <span className="font-body text-xs">{paquete.locutorio_nombre} · {paquete.locutorio_ciudad}</span>
-      </div>
-
       <div className="flex items-center justify-between pt-3 border-t border-white/5">
         <span className="font-body text-xs text-crema/40 flex items-center gap-1">
-          {paquete.fecha_estimada_locutorio && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_locutorio)}</>}
+          {paquete.fecha_estimada_llegada && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_llegada)}</>}
         </span>
         <select value={paquete.estado} onChange={(e) => onEstado(paquete.id, e.target.value)}
           className="bg-selva-dark border border-white/10 rounded-lg px-2 py-1 text-crema font-body text-xs focus:border-dorado/50 focus:outline-none">
-          <option value="en_transito">En tránsito</option>
-          <option value="en_locutorio">En locutorio</option>
-          <option value="recogido">Recogido</option>
+          <option value="en_camino">En camino</option>
+          <option value="en_warehouse">En warehouse</option>
+          <option value="enviado_bolivia">Enviado Bolivia</option>
+          <option value="entregado">Entregado</option>
         </select>
       </div>
     </motion.div>
@@ -96,9 +93,10 @@ function TabTienda() {
 
   const conteos = useMemo(() => ({
     todos: paquetes.length,
-    en_transito: paquetes.filter((p) => p.estado === 'en_transito').length,
-    en_locutorio: paquetes.filter((p) => p.estado === 'en_locutorio').length,
-    recogido: paquetes.filter((p) => p.estado === 'recogido').length,
+    en_camino: paquetes.filter((p) => p.estado === 'en_camino').length,
+    en_warehouse: paquetes.filter((p) => p.estado === 'en_warehouse').length,
+    enviado_bolivia: paquetes.filter((p) => p.estado === 'enviado_bolivia').length,
+    entregado: paquetes.filter((p) => p.estado === 'entregado').length,
   }), [paquetes]);
 
   const visibles = filtro === 'todos' ? paquetes : paquetes.filter((p) => p.estado === filtro);
@@ -111,12 +109,12 @@ function TabTienda() {
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setModal(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl font-body text-sm font-semibold text-selva-dark shrink-0"
           style={{ background: 'linear-gradient(135deg,#c9a84c,#e8d5a3,#c9a84c)', backgroundSize: '200% auto' }}>
-          <Plus size={15} /> Nuevo Paquete
+          <Plus size={15} /> Nuevo Paquete de Tienda
         </motion.button>
       </div>
 
       {cargando ? <Spinner /> : visibles.length === 0 ? (
-        <VacioEstado icono={<Truck size={48} strokeWidth={1} />} titulo="Sin paquetes de tienda" texto="Registra el primer pedido en camino a España." />
+        <VacioEstado icono={<Truck size={48} strokeWidth={1} />} titulo="Sin paquetes de tienda" texto="Registra el primer pedido en camino al warehouse." />
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <AnimatePresence>
@@ -132,51 +130,56 @@ function TabTienda() {
   );
 }
 
-/* ══════════════ TAB 2 — Paquetes para Clientes ══════════════ */
+/* ══════════════ TAB 2 — Cajas para Bolivia ══════════════ */
 
-function CardCliente({ paquete, onEstado, onEliminar }) {
-  const cfg = CLIENTE_CFG[paquete.estado] || CLIENTE_CFG.armando;
-  const descripciones = paquete.pedidos_desc ? paquete.pedidos_desc.split('|||') : [];
-  const cobrado = parseFloat(paquete.precio_envio_bolivia || 0);
+function CardBolivia({ caja, onEstado, onEliminar }) {
+  const cfg = BOLIVIA_CFG[caja.estado] || BOLIVIA_CFG.armando;
+  const contenido = caja.contenido ? caja.contenido.split('|||') : [];
+  const total = parseFloat(caja.precio_envio_total || 0);
 
   return (
     <motion.div layout variants={staggerItem} whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="glass-card rounded-2xl p-5">
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
-          <p className="font-body text-sm font-semibold text-crema truncate">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
-          <span className="font-body text-xs text-crema/40">{paquete.total_pedidos} pedido{paquete.total_pedidos === '1' ? '' : 's'} · ${cobrado.toFixed(2)}</span>
+          <p className="font-body text-sm font-semibold text-crema truncate flex items-center gap-1.5">
+            <Boxes size={14} className="text-dorado" /> Caja #{caja.id}
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="font-body text-xs text-crema/40 flex items-center gap-1"><Package size={11} /> {caja.total_pedidos} pedidos</span>
+            <span className="font-body text-xs text-crema/40 flex items-center gap-1"><Users size={11} /> {caja.total_clientes} clientes</span>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className={`px-2.5 py-1 rounded-full text-xs font-body font-medium border ${cfg.cls}`} style={pulseStyle(cfg.pulse)}>{cfg.label}</span>
-          <button onClick={() => onEliminar(paquete.id)} className="p-1.5 text-crema/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"><X size={13} /></button>
+          <button onClick={() => onEliminar(caja.id)} className="p-1.5 text-crema/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"><X size={13} /></button>
         </div>
       </div>
 
       <div className="space-y-1.5 mb-4">
-        {descripciones.slice(0, 3).map((d, i) => (
-          <div key={i} className="flex items-center gap-2"><span className="text-xs">📦</span><span className="font-body text-xs text-crema/60 truncate">{d}</span></div>
+        {contenido.slice(0, 3).map((c, i) => (
+          <div key={i} className="flex items-center gap-2"><span className="text-xs">📦</span><span className="font-body text-xs text-crema/60 truncate">{c}</span></div>
         ))}
-        {descripciones.length > 3 && <p className="font-body text-xs text-crema/30 pl-5">+{descripciones.length - 3} más</p>}
+        {contenido.length > 3 && <p className="font-body text-xs text-crema/30 pl-5">+{contenido.length - 3} más</p>}
       </div>
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">
-        {paquete.numero_seguimiento ? (
-          <div className="flex items-center gap-1"><Truck size={11} className="text-crema/30" /><span className="font-body text-xs text-crema/40 truncate max-w-[100px]">{paquete.numero_seguimiento}</span></div>
-        ) : <span className="font-body text-xs text-crema/30">{fmtFecha(paquete.fecha_estimada) || ''}</span>}
-        <select value={paquete.estado} onChange={(e) => onEstado(paquete.id, e.target.value)}
+        <span className="font-body text-xs text-crema/40">
+          {total > 0 ? `$${total.toFixed(2)}` : (fmtFecha(caja.fecha_estimada) || (caja.numero_seguimiento || ''))}
+        </span>
+        <select value={caja.estado} onChange={(e) => onEstado(caja.id, e.target.value)}
           className="bg-selva-dark border border-white/10 rounded-lg px-2 py-1 text-crema font-body text-xs focus:border-dorado/50 focus:outline-none">
           <option value="armando">Armando</option>
-          <option value="enviado">Enviado</option>
-          <option value="entregado">Entregado</option>
+          <option value="enviado">Enviada</option>
+          <option value="entregado">Entregada</option>
         </select>
       </div>
     </motion.div>
   );
 }
 
-function TabCliente() {
-  const [paquetes, setPaquetes] = useState([]);
+function TabBolivia() {
+  const [cajas, setCajas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todos');
   const [modal, setModal] = useState(false);
@@ -184,9 +187,9 @@ function TabCliente() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const { data } = await listarPaquetesCliente();
-      setPaquetes(data.paquetes);
-    } catch { toast.error('Error cargando paquetes de cliente'); }
+      const { data } = await listarPaquetesBolivia();
+      setCajas(data.paquetes);
+    } catch { toast.error('Error cargando cajas para Bolivia'); }
     finally { setCargando(false); }
   }, []);
 
@@ -194,30 +197,30 @@ function TabCliente() {
 
   const cambiarEstado = useCallback(async (id, estado) => {
     try {
-      await actualizarEstadoCliente(id, { estado });
-      setPaquetes((prev) => prev.map((p) => (p.id === id ? { ...p, estado } : p)));
+      await actualizarEstadoBolivia(id, { estado });
+      setCajas((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)));
       toast.success('Estado actualizado');
     } catch { toast.error('Error al actualizar'); }
   }, []);
 
   const eliminar = useCallback(async (id) => {
-    if (!window.confirm('¿Eliminar este paquete?')) return;
+    if (!window.confirm('¿Eliminar esta caja?')) return;
     try {
-      await eliminarPaqueteCliente(id);
-      setPaquetes((prev) => prev.filter((p) => p.id !== id));
-      toast.success('Paquete eliminado');
+      await eliminarPaqueteBolivia(id);
+      setCajas((prev) => prev.filter((c) => c.id !== id));
+      toast.success('Caja eliminada');
     } catch { toast.error('Error al eliminar'); }
   }, []);
 
   const conteos = useMemo(() => ({
-    todos: paquetes.length,
-    armando: paquetes.filter((p) => p.estado === 'armando').length,
-    enviado: paquetes.filter((p) => p.estado === 'enviado').length,
-    entregado: paquetes.filter((p) => p.estado === 'entregado').length,
-  }), [paquetes]);
+    todos: cajas.length,
+    armando: cajas.filter((c) => c.estado === 'armando').length,
+    enviado: cajas.filter((c) => c.estado === 'enviado').length,
+    entregado: cajas.filter((c) => c.estado === 'entregado').length,
+  }), [cajas]);
 
-  const visibles = filtro === 'todos' ? paquetes : paquetes.filter((p) => p.estado === filtro);
-  const tabs = CLIENTE_TABS.map((t) => ({ ...t, count: conteos[t.key] }));
+  const visibles = filtro === 'todos' ? cajas : cajas.filter((c) => c.estado === filtro);
+  const tabs = BOLIVIA_TABS.map((t) => ({ ...t, count: conteos[t.key] }));
 
   return (
     <div>
@@ -226,45 +229,99 @@ function TabCliente() {
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setModal(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl font-body text-sm font-semibold text-selva-dark shrink-0"
           style={{ background: 'linear-gradient(135deg,#c9a84c,#e8d5a3,#c9a84c)', backgroundSize: '200% auto' }}>
-          <Plus size={15} /> Armar Paquete
+          <Plus size={15} /> Nueva Caja para Bolivia
         </motion.button>
       </div>
 
       {cargando ? <Spinner /> : visibles.length === 0 ? (
-        <VacioEstado icono={<Package size={48} strokeWidth={1} />} titulo="Sin paquetes" texto="Arma el primer paquete para un cliente." />
+        <VacioEstado icono={<Boxes size={48} strokeWidth={1} />} titulo="Sin cajas" texto="Arma la primera caja para Bolivia." />
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <AnimatePresence>
-            {visibles.map((p) => <CardCliente key={p.id} paquete={p} onEstado={cambiarEstado} onEliminar={eliminar} />)}
+            {visibles.map((c) => <CardBolivia key={c.id} caja={c} onEstado={cambiarEstado} onEliminar={eliminar} />)}
           </AnimatePresence>
         </motion.div>
       )}
 
       <AnimatePresence>
-        {modal && <ModalCrearPaquete onCerrar={() => setModal(false)} onCreado={() => { setModal(false); cargar(); }} />}
+        {modal && <ModalCrearBolivia onCerrar={() => setModal(false)} onCreado={() => { setModal(false); cargar(); }} />}
       </AnimatePresence>
     </div>
   );
 }
 
-/* ══════════════ Contenedor admin con los dos tabs ══════════════ */
+/* ══════════════ TAB 3 — Vista Cliente (preview) ══════════════ */
+
+function TabPreview() {
+  const [paquetes, setPaquetes] = useState([]);
+  const [cargando, setCargando] = useState(true);
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    try {
+      const { data } = await listarPaquetesTienda();
+      setPaquetes(data.paquetes);
+    } catch { toast.error('Error cargando preview'); }
+    finally { setCargando(false); }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  // Mapea cada paquete de tienda al formato que ve el cliente
+  const pedidos = useMemo(() => paquetes.map((p) => ({
+    id: p.id,
+    tienda_origen: p.tienda_origen,
+    descripcion: p.descripcion,
+    estado: p.estado,
+    fecha_estimada: p.fecha_estimada_llegada,
+    numero_seguimiento: p.numero_seguimiento,
+    cliente_nombre: p.cliente_nombre,
+    cliente_apellido: p.cliente_apellido,
+  })), [paquetes]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-lg bg-dorado/8 border border-dorado/20 w-fit">
+        <Eye size={14} className="text-dorado" />
+        <span className="font-body text-xs text-crema/60">Así ve cada cliente sus propios pedidos (sin precios, locutorio ni otros clientes)</span>
+      </div>
+
+      {cargando ? <Spinner /> : pedidos.length === 0 ? (
+        <VacioEstado icono={<Package size={48} strokeWidth={1} />} titulo="Sin pedidos" texto="No hay pedidos para previsualizar." />
+      ) : (
+        <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-2 gap-5 max-w-4xl">
+          {pedidos.map((p) => (
+            <div key={p.id}>
+              <p className="font-body text-xs text-crema/35 mb-1.5 pl-1">👤 {p.cliente_nombre} {p.cliente_apellido}</p>
+              <TimelinePedido pedido={p} />
+            </div>
+          ))}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════ Contenedor admin con los 3 tabs ══════════════ */
 
 export default function AdminPaquetes() {
   const [tab, setTab] = useState('tienda');
+
+  const TABS = [
+    { key: 'tienda', label: 'Paquetes de Tienda', icon: Store },
+    { key: 'bolivia', label: 'Cajas para Bolivia', icon: Boxes },
+    { key: 'preview', label: 'Vista Cliente', icon: Eye },
+  ];
 
   return (
     <PageWrapper className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="font-display text-3xl font-bold text-crema">Paquetes</h1>
-        <p className="font-body text-sm text-crema/50 mt-0.5">Gestión de los dos flujos de envío</p>
+        <p className="font-body text-sm text-crema/50 mt-0.5">Del warehouse en España a la puerta del cliente en Bolivia</p>
       </div>
 
-      {/* Selector de flujo */}
       <div className="flex gap-1 mb-7 bg-selva-dark/60 p-1 rounded-xl w-fit">
-        {[
-          { key: 'tienda', label: 'Paquetes de Tiendas', icon: Store },
-          { key: 'cliente', label: 'Paquetes para Clientes', icon: Boxes },
-        ].map((s) => {
+        {TABS.map((s) => {
           const Icon = s.icon;
           const active = tab === s.key;
           return (
@@ -279,7 +336,7 @@ export default function AdminPaquetes() {
 
       <AnimatePresence mode="wait">
         <motion.div key={tab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
-          {tab === 'tienda' ? <TabTienda /> : <TabCliente />}
+          {tab === 'tienda' ? <TabTienda /> : tab === 'bolivia' ? <TabBolivia /> : <TabPreview />}
         </motion.div>
       </AnimatePresence>
     </PageWrapper>

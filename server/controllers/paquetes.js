@@ -35,21 +35,27 @@ const listarTienda = async (req, res) => {
 };
 
 /* Pedidos que aún no tienen un paquete_tienda asignado (para el selector
-   del modal de creación). El trabajador no ve precios. */
+   del modal de creación). Si se pasa ?clienteId, sólo los de ese cliente.
+   El trabajador no ve precios. */
 const pedidosSinTienda = async (req, res) => {
   try {
+    const { clienteId } = req.query;
     const esTrabajador = req.user.rol_id === ROL.TRABAJADOR;
     const campos = esTrabajador
       ? 'p.id, p.descripcion, p.tienda_origen, p.estado, p.fecha_compra, p.cliente_id'
       : 'p.*';
+    const params = [];
+    let filtroCliente = '';
+    if (clienteId) { filtroCliente = 'AND p.cliente_id = ?'; params.push(clienteId); }
     const [rows] = await pool.execute(`
       SELECT ${campos},
              uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
       FROM pedidos p
       JOIN usuarios uc ON p.cliente_id = uc.id
-      WHERE p.id NOT IN (SELECT pedido_id FROM paquetes_tienda)
+      WHERE p.id NOT IN (SELECT pedido_id FROM paquetes_tienda WHERE pedido_id IS NOT NULL)
+        ${filtroCliente}
       ORDER BY p.fecha_compra DESC
-    `);
+    `, params);
     res.json({ pedidos: rows });
   } catch (err) {
     console.error('Error obteniendo pedidos sin paquete de tienda:', err);

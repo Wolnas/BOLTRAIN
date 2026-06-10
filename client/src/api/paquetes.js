@@ -2,7 +2,7 @@ import api from './auth';
 
 /* ─── Flujo 1: Paquetes de Tienda (España) ─── */
 export const listarPaquetesTienda   = ()       => api.get('/paquetes/tienda');
-export const pedidosSinTienda       = ()       => api.get('/paquetes/tienda/pedidos-disponibles');
+export const pedidosSinTienda       = (clienteId) => api.get('/paquetes/tienda/pedidos-disponibles', { params: clienteId ? { clienteId } : {} });
 export const crearPaqueteTienda     = (datos)  => api.post('/paquetes/tienda', datos);
 export const actualizarEstadoTienda = (id, d)  => api.put(`/paquetes/tienda/${id}`, d);
 export const eliminarPaqueteTienda  = (id)      => api.delete(`/paquetes/tienda/${id}`);

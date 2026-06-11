@@ -83,7 +83,7 @@ function CardWarehouse({ paquete, onAvanzar }) {
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">
         <span className="font-body text-xs text-crema/40 flex items-center gap-1">
-          {paquete.fecha_estimada_llegada && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_llegada)}</>}
+          {paquete.fecha_estimada_locutorio && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_locutorio)}</>}
         </span>
         {accion ? (
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={ejecutar}

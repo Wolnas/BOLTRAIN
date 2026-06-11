@@ -20,7 +20,7 @@ const listar = async (req, res) => {
   try {
     const [rows] = await pool.execute(`
       SELECT
-        p.id, p.estado, p.fecha_estimada_llegada,
+        p.id, p.estado, p.fecha_estimada_locutorio,
         p.numero_seguimiento, p.notas_internas, p.created_at,
         p.cliente_id, p.locutorio_id,
         l.nombre AS locutorio_nombre,
@@ -80,7 +80,7 @@ const crear = async (req, res) => {
     await conn.beginTransaction();
     const {
       cliente_id, pedidos, locutorio_id, numero_seguimiento,
-      estado, fecha_estimada_llegada, notas_internas,
+      estado, fecha_estimada_locutorio, notas_internas,
     } = req.body;
 
     if (!cliente_id) { await conn.rollback(); return res.status(400).json({ error: 'Selecciona un cliente' }); }
@@ -93,11 +93,11 @@ const crear = async (req, res) => {
     const [result] = await conn.execute(
       `INSERT INTO paquetes
          (cliente_id, locutorio_id, registrado_por, numero_seguimiento,
-          estado, fecha_estimada_llegada, fecha_recogida, notas_internas)
+          estado, fecha_estimada_locutorio, fecha_recogida, notas_internas)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cliente_id, locutorio_id, req.user.id, numero_seguimiento || null,
-        estadoFinal, fecha_estimada_llegada || null, fechaRecogida, notas_internas || null,
+        estadoFinal, fecha_estimada_locutorio || null, fechaRecogida, notas_internas || null,
       ]
     );
 
@@ -128,7 +128,7 @@ const crear = async (req, res) => {
 const actualizarEstado = async (req, res) => {
   try {
     const { id } = req.params;
-    const { estado, numero_seguimiento, fecha_estimada_llegada } = req.body;
+    const { estado, numero_seguimiento, fecha_estimada_locutorio } = req.body;
     if (estado && !ESTADOS_TIENDA.includes(estado)) {
       return res.status(400).json({ error: 'Estado inválido' });
     }
@@ -139,11 +139,11 @@ const actualizarEstado = async (req, res) => {
       `UPDATE paquetes SET
          estado = COALESCE(?, estado),
          numero_seguimiento = COALESCE(?, numero_seguimiento),
-         fecha_estimada_llegada = COALESCE(?, fecha_estimada_llegada),
+         fecha_estimada_locutorio = COALESCE(?, fecha_estimada_locutorio),
          fecha_recogida = CASE WHEN ? = 'en_warehouse' AND fecha_recogida IS NULL THEN ? ELSE fecha_recogida END
        WHERE id = ?`,
       [
-        estado || null, numero_seguimiento || null, fecha_estimada_llegada || null,
+        estado || null, numero_seguimiento || null, fecha_estimada_locutorio || null,
         estado || null, fechaRecogida, id,
       ]
     );
@@ -337,7 +337,7 @@ const misPedidos = async (req, res) => {
                 WHEN 4 THEN 'entregado'
                 ELSE 'en_camino' END AS estado,
               pak.estado AS estado_paquete,
-              COALESCE(pb.fecha_estimada, pak.fecha_estimada_llegada) AS fecha_estimada,
+              COALESCE(pb.fecha_estimada, pak.fecha_estimada_locutorio) AS fecha_estimada,
               pak.numero_seguimiento
        FROM pedidos p
        LEFT JOIN paquete_pedidos pp ON p.id = pp.pedido_id

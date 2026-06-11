@@ -46,7 +46,7 @@ function CardTienda({ paquete, onEstado, onEliminar }) {
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">
         <span className="font-body text-xs text-crema/40 flex items-center gap-1">
-          {paquete.fecha_estimada_llegada && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_llegada)}</>}
+          {paquete.fecha_estimada_locutorio && <><Calendar size={11} /> {fmtFecha(paquete.fecha_estimada_locutorio)}</>}
         </span>
         <select value={paquete.estado} onChange={(e) => onEstado(paquete.id, e.target.value)}
           className="bg-selva-dark border border-white/10 rounded-lg px-2 py-1 text-crema font-body text-xs focus:border-dorado/50 focus:outline-none">
@@ -280,7 +280,7 @@ function TabPreview() {
       tienda_origen: tiendas[i] || '',
       descripcion: desc,
       estado: p.estado,
-      fecha_estimada: p.fecha_estimada_llegada,
+      fecha_estimada: p.fecha_estimada_locutorio,
       numero_seguimiento: p.numero_seguimiento,
       cliente_nombre: p.cliente_nombre,
       cliente_apellido: p.cliente_apellido,

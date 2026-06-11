@@ -98,7 +98,7 @@ export default function ModalCrearTienda({ onCerrar, onCreado, hidePrecios = fal
         pedidos: seleccionados.map((p) => p.id),
         locutorio_id: locutorioId,
         estado,
-        fecha_estimada_llegada: fechaEstimada || null,
+        fecha_estimada_locutorio: fechaEstimada || null,
         numero_seguimiento: seguimiento || null,
         notas_internas: notas || null,
       });

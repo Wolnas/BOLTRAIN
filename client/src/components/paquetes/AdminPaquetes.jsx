@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Truck, Package, ShoppingBag, Store, Boxes, Calendar, Users, Eye } from 'lucide-react';
+import { Plus, X, Truck, Package, ShoppingBag, Store, Boxes, Calendar, Users, Eye, Pencil, MapPin } from 'lucide-react';
 import {
   listarPaquetesTienda, actualizarEstadoTienda, eliminarPaqueteTienda,
   listarPaquetesBolivia, actualizarEstadoBolivia, eliminarPaqueteBolivia,
@@ -8,6 +8,7 @@ import {
 import { PageWrapper, Spinner, VacioEstado, Tabs, staggerContainer, staggerItem } from '../dashboard/ui';
 import { TIENDA_CFG, TIENDA_TABS, BOLIVIA_CFG, BOLIVIA_TABS, pulseStyle } from './estados';
 import ModalCrearTienda from './ModalCrearTienda';
+import ModalEditarTienda from './ModalEditarTienda';
 import ModalCrearBolivia from './ModalCrearBolivia';
 import TimelinePedido from './TimelinePedido';
 import toast from 'react-hot-toast';
@@ -16,7 +17,7 @@ const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-ES', { day: '2-di
 
 /* ══════════════ TAB 1 — Paquetes de Tienda ══════════════ */
 
-function CardTienda({ paquete, onEstado, onEliminar }) {
+function CardTienda({ paquete, onEstado, onEliminar, onEditar }) {
   const cfg = TIENDA_CFG[paquete.estado] || TIENDA_CFG.en_camino;
   const descripciones = paquete.descripciones ? paquete.descripciones.split('|||') : [];
   return (
@@ -26,6 +27,11 @@ function CardTienda({ paquete, onEstado, onEliminar }) {
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
           <p className="font-body text-sm font-semibold text-crema truncate">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
+          {paquete.locutorio_nombre && (
+            <p className="font-body text-xs text-dorado/80 truncate flex items-center gap-1 mt-0.5">
+              <MapPin size={11} className="shrink-0" /> {paquete.locutorio_nombre}{paquete.locutorio_ciudad ? ` — ${paquete.locutorio_ciudad}` : ''}
+            </p>
+          )}
           <div className="flex items-center gap-1.5 mt-0.5">
             <ShoppingBag size={11} className="text-crema/40" />
             <span className="font-body text-xs text-crema/40 truncate">{paquete.total_pedidos} pedido{paquete.total_pedidos === '1' ? '' : 's'}</span>
@@ -33,6 +39,7 @@ function CardTienda({ paquete, onEstado, onEliminar }) {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className={`px-2.5 py-1 rounded-full text-xs font-body font-medium border ${cfg.cls}`} style={pulseStyle(cfg.pulse)}>{cfg.label}</span>
+          <button onClick={() => onEditar(paquete)} className="p-1.5 text-crema/30 hover:text-dorado hover:bg-dorado/10 rounded-lg transition-colors"><Pencil size={13} /></button>
           <button onClick={() => onEliminar(paquete.id)} className="p-1.5 text-crema/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"><X size={13} /></button>
         </div>
       </div>
@@ -65,6 +72,7 @@ function TabTienda() {
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todos');
   const [modal, setModal] = useState(false);
+  const [editando, setEditando] = useState(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -83,6 +91,11 @@ function TabTienda() {
       setPaquetes((prev) => prev.map((p) => (p.id === id ? { ...p, estado } : p)));
       toast.success('Estado actualizado');
     } catch { toast.error('Error al actualizar'); }
+  }, []);
+
+  const aplicarEdicion = useCallback((id, cambios) => {
+    setPaquetes((prev) => prev.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
+    setEditando(null);
   }, []);
 
   const eliminar = useCallback(async (id) => {
@@ -121,13 +134,17 @@ function TabTienda() {
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <AnimatePresence>
-            {visibles.map((p) => <CardTienda key={p.id} paquete={p} onEstado={cambiarEstado} onEliminar={eliminar} />)}
+            {visibles.map((p) => <CardTienda key={p.id} paquete={p} onEstado={cambiarEstado} onEliminar={eliminar} onEditar={setEditando} />)}
           </AnimatePresence>
         </motion.div>
       )}
 
       <AnimatePresence>
         {modal && <ModalCrearTienda onCerrar={() => setModal(false)} onCreado={() => { setModal(false); cargar(); }} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editando && <ModalEditarTienda paquete={editando} onCerrar={() => setEditando(null)} onActualizado={aplicarEdicion} />}
       </AnimatePresence>
     </div>
   );

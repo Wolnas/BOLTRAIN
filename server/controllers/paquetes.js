@@ -123,12 +123,16 @@ const crear = async (req, res) => {
   }
 };
 
-/* PUT /api/paquetes/:id — actualizar estado. Al llegar a warehouse sella
-   fecha_recogida automáticamente. */
+/* PUT /api/paquetes/:id — actualizar estado y datos editables del paquete
+   (cliente, locutorio destino, fecha, seguimiento, notas). Al llegar a
+   warehouse sella fecha_recogida automáticamente. */
 const actualizarEstado = async (req, res) => {
   try {
     const { id } = req.params;
-    const { estado, numero_seguimiento, fecha_estimada_locutorio } = req.body;
+    const {
+      estado, numero_seguimiento, fecha_estimada_locutorio,
+      cliente_id, locutorio_id, notas_internas,
+    } = req.body;
     if (estado && !ESTADOS_TIENDA.includes(estado)) {
       return res.status(400).json({ error: 'Estado inválido' });
     }
@@ -140,10 +144,14 @@ const actualizarEstado = async (req, res) => {
          estado = COALESCE(?, estado),
          numero_seguimiento = COALESCE(?, numero_seguimiento),
          fecha_estimada_locutorio = COALESCE(?, fecha_estimada_locutorio),
+         cliente_id = COALESCE(?, cliente_id),
+         locutorio_id = COALESCE(?, locutorio_id),
+         notas_internas = COALESCE(?, notas_internas),
          fecha_recogida = CASE WHEN ? = 'en_warehouse' AND fecha_recogida IS NULL THEN ? ELSE fecha_recogida END
        WHERE id = ?`,
       [
         estado || null, numero_seguimiento || null, fecha_estimada_locutorio || null,
+        cliente_id || null, locutorio_id || null, notas_internas ?? null,
         estado || null, fechaRecogida, id,
       ]
     );

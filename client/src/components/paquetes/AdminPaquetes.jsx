@@ -18,6 +18,7 @@ const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-ES', { day: '2-di
 
 function CardTienda({ paquete, onEstado, onEliminar }) {
   const cfg = TIENDA_CFG[paquete.estado] || TIENDA_CFG.en_camino;
+  const descripciones = paquete.descripciones ? paquete.descripciones.split('|||') : [];
   return (
     <motion.div layout variants={staggerItem} whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 300, damping: 26 }}
@@ -27,7 +28,7 @@ function CardTienda({ paquete, onEstado, onEliminar }) {
           <p className="font-body text-sm font-semibold text-crema truncate">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <ShoppingBag size={11} className="text-crema/40" />
-            <span className="font-body text-xs text-crema/40 truncate">{paquete.tienda_origen}</span>
+            <span className="font-body text-xs text-crema/40 truncate">{paquete.total_pedidos} pedido{paquete.total_pedidos === '1' ? '' : 's'}</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -36,9 +37,11 @@ function CardTienda({ paquete, onEstado, onEliminar }) {
         </div>
       </div>
 
-      <div className="flex items-start gap-2 mb-4">
-        <span className="text-sm">📦</span>
-        <span className="font-body text-sm text-crema/75">{paquete.descripcion}</span>
+      <div className="space-y-1.5 mb-4">
+        {descripciones.slice(0, 3).map((d, i) => (
+          <div key={i} className="flex items-center gap-2"><span className="text-xs">📦</span><span className="font-body text-xs text-crema/60 truncate">{d}</span></div>
+        ))}
+        {descripciones.length > 3 && <p className="font-body text-xs text-crema/30 pl-5">+{descripciones.length - 3} más</p>}
       </div>
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">
@@ -267,17 +270,22 @@ function TabPreview() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // Mapea cada paquete de tienda al formato que ve el cliente
-  const pedidos = useMemo(() => paquetes.map((p) => ({
-    id: p.id,
-    tienda_origen: p.tienda_origen,
-    descripcion: p.descripcion,
-    estado: p.estado,
-    fecha_estimada: p.fecha_estimada_llegada,
-    numero_seguimiento: p.numero_seguimiento,
-    cliente_nombre: p.cliente_nombre,
-    cliente_apellido: p.cliente_apellido,
-  })), [paquetes]);
+  // Expande cada paquete de tienda en sus pedidos, como los ve el cliente.
+  // Todos los pedidos de un mismo paquete comparten el estado del paquete.
+  const pedidos = useMemo(() => paquetes.flatMap((p) => {
+    const tiendas = p.tiendas ? p.tiendas.split('|||') : [];
+    const descripciones = p.descripciones ? p.descripciones.split('|||') : [];
+    return descripciones.map((desc, i) => ({
+      id: `${p.id}-${i}`,
+      tienda_origen: tiendas[i] || '',
+      descripcion: desc,
+      estado: p.estado,
+      fecha_estimada: p.fecha_estimada_llegada,
+      numero_seguimiento: p.numero_seguimiento,
+      cliente_nombre: p.cliente_nombre,
+      cliente_apellido: p.cliente_apellido,
+    }));
+  }), [paquetes]);
 
   return (
     <div>

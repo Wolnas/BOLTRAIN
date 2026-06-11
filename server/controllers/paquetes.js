@@ -4,26 +4,31 @@ const ROL = { ADMIN: 1, VIEWER: 2, TRABAJADOR: 3 };
 
 /* ════════════════════════════════════════════════════════════
  *  PAQUETES DE TIENDA
- *  Un pedido de UN cliente que llega al warehouse en España.
+ *  Agrupa VARIOS pedidos de UN cliente que llegan al warehouse España.
+ *  Pedidos vía pivote paquete_tienda_pedidos.
  *  Estados: en_camino → en_warehouse → enviado_bolivia → entregado.
  * ════════════════════════════════════════════════════════════ */
 
 const ESTADOS_TIENDA = ['en_camino', 'en_warehouse', 'enviado_bolivia', 'entregado'];
 
-/* Listar todos los paquetes de tienda con cliente y tienda del pedido. */
+/* Listar paquetes de tienda con cliente, locutorio y contenido (sus pedidos). */
 const listarTienda = async (req, res) => {
   try {
     const [rows] = await pool.execute(`
-      SELECT pt.id, pt.pedido_id, pt.cliente_id, pt.locutorio_id, pt.numero_seguimiento,
+      SELECT pt.id, pt.cliente_id, pt.locutorio_id, pt.numero_seguimiento,
              pt.estado, pt.fecha_estimada_llegada, pt.fecha_llegada,
              pt.notas_internas, pt.created_at,
-             p.descripcion, p.tienda_origen, p.fecha_compra,
              uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido,
-             l.nombre AS locutorio_nombre, l.ciudad AS locutorio_ciudad
+             l.nombre AS locutorio_nombre, l.ciudad AS locutorio_ciudad,
+             COUNT(ptp.pedido_id) AS total_pedidos,
+             GROUP_CONCAT(p.tienda_origen ORDER BY p.id SEPARATOR '|||') AS tiendas,
+             GROUP_CONCAT(p.descripcion  ORDER BY p.id SEPARATOR '|||') AS descripciones
       FROM paquetes_tienda pt
-      JOIN pedidos p    ON pt.pedido_id = p.id
       JOIN usuarios uc  ON pt.cliente_id = uc.id
       JOIN locutorios l ON pt.locutorio_id = l.id
+      LEFT JOIN paquete_tienda_pedidos ptp ON pt.id = ptp.paquete_tienda_id
+      LEFT JOIN pedidos p ON ptp.pedido_id = p.id
+      GROUP BY pt.id
       ORDER BY pt.created_at DESC
     `);
     res.json({ paquetes: rows });
@@ -33,8 +38,8 @@ const listarTienda = async (req, res) => {
   }
 };
 
-/* Pedidos de un cliente que aún no tienen paquete_tienda (para el modal).
-   Requiere ?clienteId. El trabajador no ve precios. */
+/* Pedidos de un cliente que aún no están en ningún paquete de tienda
+   (para el multi-select del modal). Requiere ?clienteId. */
 const pedidosSinTienda = async (req, res) => {
   try {
     const { clienteId } = req.query;
@@ -50,7 +55,7 @@ const pedidosSinTienda = async (req, res) => {
              uc.nombre AS cliente_nombre, uc.apellido AS cliente_apellido
       FROM pedidos p
       JOIN usuarios uc ON p.cliente_id = uc.id
-      WHERE p.id NOT IN (SELECT pedido_id FROM paquetes_tienda WHERE pedido_id IS NOT NULL)
+      WHERE p.id NOT IN (SELECT pedido_id FROM paquete_tienda_pedidos WHERE pedido_id IS NOT NULL)
         ${filtroCliente}
       ORDER BY p.fecha_compra DESC
     `, params);
@@ -61,38 +66,53 @@ const pedidosSinTienda = async (req, res) => {
   }
 };
 
+/* Crear un paquete de tienda con varios pedidos (transacción). */
 const crearTienda = async (req, res) => {
+  const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
     const {
-      cliente_id, pedido_id, locutorio_id, numero_seguimiento,
+      cliente_id, pedidos, locutorio_id, numero_seguimiento,
       estado, fecha_estimada_llegada, notas_internas,
     } = req.body;
 
-    if (!cliente_id) return res.status(400).json({ error: 'Selecciona un cliente' });
-    if (!pedido_id) return res.status(400).json({ error: 'Selecciona un pedido' });
-    if (!locutorio_id) return res.status(400).json({ error: 'Selecciona un locutorio' });
+    if (!cliente_id) { await conn.rollback(); return res.status(400).json({ error: 'Selecciona un cliente' }); }
+    if (!pedidos || pedidos.length === 0) { await conn.rollback(); return res.status(400).json({ error: 'Selecciona al menos un pedido' }); }
+    if (!locutorio_id) { await conn.rollback(); return res.status(400).json({ error: 'Selecciona un locutorio' }); }
 
     const estadoFinal = ESTADOS_TIENDA.includes(estado) ? estado : 'en_camino';
-    // Si ya nace en warehouse, sellamos la fecha de llegada
     const fechaLlegada = estadoFinal === 'en_warehouse' ? new Date() : null;
 
-    const [result] = await pool.execute(
+    const [result] = await conn.execute(
       `INSERT INTO paquetes_tienda
-         (pedido_id, cliente_id, locutorio_id, registrado_por, numero_seguimiento,
+         (cliente_id, locutorio_id, registrado_por, numero_seguimiento,
           estado, fecha_estimada_llegada, fecha_llegada, notas_internas)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        pedido_id, cliente_id, locutorio_id, req.user.id, numero_seguimiento || null,
+        cliente_id, locutorio_id, req.user.id, numero_seguimiento || null,
         estadoFinal, fecha_estimada_llegada || null, fechaLlegada, notas_internas || null,
       ]
     );
-    res.status(201).json({ paquete: { id: result.insertId } });
+
+    const paqueteId = result.insertId;
+    for (const pedidoId of pedidos) {
+      await conn.execute(
+        'INSERT INTO paquete_tienda_pedidos (paquete_tienda_id, pedido_id) VALUES (?, ?)',
+        [paqueteId, pedidoId]
+      );
+    }
+
+    await conn.commit();
+    res.status(201).json({ paquete: { id: paqueteId } });
   } catch (err) {
+    await conn.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ error: 'Ese pedido ya tiene un paquete de tienda' });
+      return res.status(409).json({ error: 'Uno de los pedidos ya está en otro paquete de tienda' });
     }
     console.error('Error creando paquete de tienda:', err);
     res.status(500).json({ error: 'Error interno al crear el paquete de tienda' });
+  } finally {
+    conn.release();
   }
 };
 
@@ -131,6 +151,7 @@ const actualizarEstadoTienda = async (req, res) => {
 const eliminarTienda = async (req, res) => {
   try {
     const { id } = req.params;
+    // paquete_tienda_pedidos se borra en cascada (ON DELETE CASCADE)
     const [result] = await pool.execute('DELETE FROM paquetes_tienda WHERE id = ?', [id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Paquete no encontrado' });
     res.json({ mensaje: 'Paquete de tienda eliminado' });
@@ -144,12 +165,10 @@ const eliminarTienda = async (req, res) => {
  *  PAQUETES PARA BOLIVIA
  *  Caja que arma el trabajador; puede mezclar pedidos de varios clientes.
  *  Estados: armando → enviado → entregado.
- *  El estado de la caja se propaga al estado_tienda de cada pedido.
  * ════════════════════════════════════════════════════════════ */
 
 const ESTADOS_BOLIVIA = ['armando', 'enviado', 'entregado'];
 
-/* Listar cajas para Bolivia con nº de pedidos, nº de clientes y contenido. */
 const listarBolivia = async (req, res) => {
   try {
     const [rows] = await pool.execute(`
@@ -172,8 +191,8 @@ const listarBolivia = async (req, res) => {
   }
 };
 
-/* Pedidos disponibles para meter en una caja: tienen paquete_tienda (en ruta o
-   en warehouse) y no están en ninguna caja. De cualquier cliente. */
+/* Pedidos disponibles para una caja: están en un paquete de tienda
+   (en_camino o en_warehouse) y no están en ninguna caja. De cualquier cliente. */
 const pedidosSinCaja = async (req, res) => {
   try {
     const [rows] = await pool.execute(`
@@ -183,7 +202,8 @@ const pedidosSinCaja = async (req, res) => {
              pt.estado AS estado_tienda
       FROM pedidos p
       JOIN usuarios uc ON p.cliente_id = uc.id
-      JOIN paquetes_tienda pt ON pt.pedido_id = p.id
+      JOIN paquete_tienda_pedidos ptp ON ptp.pedido_id = p.id
+      JOIN paquetes_tienda pt ON pt.id = ptp.paquete_tienda_id
       WHERE pt.estado IN ('en_camino', 'en_warehouse')
         AND p.id NOT IN (SELECT pedido_id FROM paquete_bolivia_pedidos WHERE pedido_id IS NOT NULL)
       ORDER BY uc.nombre ASC, p.fecha_compra DESC
@@ -238,22 +258,19 @@ const crearBolivia = async (req, res) => {
   }
 };
 
-/* Actualizar estado de la caja. Propaga al estado_tienda de sus pedidos:
-   enviado → enviado_bolivia, entregado → entregado. */
+/* Actualizar estado de la caja. El estado del viaje que ve el cliente se
+   deriva en consulta (ver misPedidos), así que aquí no mutamos paquetes_tienda. */
 const actualizarEstadoBolivia = async (req, res) => {
-  const conn = await pool.getConnection();
   try {
-    await conn.beginTransaction();
     const { id } = req.params;
     const { estado, numero_seguimiento, fecha_estimada, precio_envio_total } = req.body;
     if (estado && !ESTADOS_BOLIVIA.includes(estado)) {
-      await conn.rollback();
       return res.status(400).json({ error: 'Estado inválido' });
     }
 
     const fechaEntrega = estado === 'entregado' ? new Date() : null;
 
-    const [result] = await conn.execute(
+    const [result] = await pool.execute(
       `UPDATE paquetes_bolivia SET
          estado = COALESCE(?, estado),
          numero_seguimiento = COALESCE(?, numero_seguimiento),
@@ -266,45 +283,17 @@ const actualizarEstadoBolivia = async (req, res) => {
         precio_envio_total ?? null, estado || null, fechaEntrega, id,
       ]
     );
-    if (result.affectedRows === 0) {
-      await conn.rollback();
-      return res.status(404).json({ error: 'Caja no encontrada' });
-    }
-
-    // Propagar el estado de la caja a los pedidos que contiene
-    if (estado === 'enviado') {
-      await conn.execute(
-        `UPDATE paquetes_tienda pt
-         JOIN paquete_bolivia_pedidos pbp ON pbp.pedido_id = pt.pedido_id
-         SET pt.estado = 'enviado_bolivia'
-         WHERE pbp.paquete_bolivia_id = ? AND pt.estado <> 'entregado'`,
-        [id]
-      );
-    } else if (estado === 'entregado') {
-      await conn.execute(
-        `UPDATE paquetes_tienda pt
-         JOIN paquete_bolivia_pedidos pbp ON pbp.pedido_id = pt.pedido_id
-         SET pt.estado = 'entregado'
-         WHERE pbp.paquete_bolivia_id = ?`,
-        [id]
-      );
-    }
-
-    await conn.commit();
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Caja no encontrada' });
     res.json({ mensaje: 'Caja actualizada', estado });
   } catch (err) {
-    await conn.rollback();
     console.error('Error actualizando caja para Bolivia:', err);
     res.status(500).json({ error: 'Error interno al actualizar la caja' });
-  } finally {
-    conn.release();
   }
 };
 
 const eliminarBolivia = async (req, res) => {
   try {
     const { id } = req.params;
-    // paquete_bolivia_pedidos se borra en cascada (ON DELETE CASCADE)
     const [result] = await pool.execute('DELETE FROM paquetes_bolivia WHERE id = ?', [id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Caja no encontrada' });
     res.json({ mensaje: 'Caja eliminada' });
@@ -316,18 +305,29 @@ const eliminarBolivia = async (req, res) => {
 
 /* ════════════════════════════════════════════════════════════
  *  VISTA CLIENTE — Mis Pedidos
- *  Sólo los pedidos del cliente logueado y su estado actual.
- *  Sin locutorio, sin precios, sin notas, sin otros clientes.
+ *  El estado por pedido se deriva: el mayor avance entre el estado del
+ *  paquete de tienda y el de la caja Bolivia que lo contiene.
+ *  Sin locutorio, precios, notas ni otros clientes.
  * ════════════════════════════════════════════════════════════ */
 const misPedidos = async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `SELECT p.id, p.tienda_origen, p.descripcion,
-              pt.estado,
+              CASE GREATEST(
+                     FIELD(pt.estado, 'en_camino', 'en_warehouse', 'enviado_bolivia', 'entregado'),
+                     CASE WHEN pb.estado = 'entregado' THEN 4
+                          WHEN pb.estado = 'enviado'   THEN 3
+                          ELSE 0 END)
+                WHEN 1 THEN 'en_camino'
+                WHEN 2 THEN 'en_warehouse'
+                WHEN 3 THEN 'enviado_bolivia'
+                WHEN 4 THEN 'entregado'
+                ELSE 'en_camino' END AS estado,
               COALESCE(pb.fecha_estimada, pt.fecha_estimada_llegada) AS fecha_estimada,
               pt.numero_seguimiento
        FROM pedidos p
-       JOIN paquetes_tienda pt ON pt.pedido_id = p.id
+       JOIN paquete_tienda_pedidos ptp ON ptp.pedido_id = p.id
+       JOIN paquetes_tienda pt ON pt.id = ptp.paquete_tienda_id
        LEFT JOIN paquete_bolivia_pedidos pbp ON pbp.pedido_id = p.id
        LEFT JOIN paquetes_bolivia pb ON pb.id = pbp.paquete_bolivia_id
        WHERE p.cliente_id = ?

@@ -20,6 +20,7 @@ function CardWarehouse({ paquete, onAvanzar }) {
   const [saliendo, setSaliendo] = useState(false);
   const [hechoCheck, setHechoCheck] = useState(false);
   const cfg = TIENDA_CFG[paquete.estado] || TIENDA_CFG.en_camino;
+  const descripciones = paquete.descripciones ? paquete.descripciones.split('|||') : [];
 
   // en_camino → en_warehouse ; en_warehouse → enviado_bolivia (recogido)
   const accion = paquete.estado === 'en_camino'
@@ -65,18 +66,19 @@ function CardWarehouse({ paquete, onAvanzar }) {
       </AnimatePresence>
 
       <div className="flex items-start justify-between mb-3">
-        <p className="font-body text-sm font-semibold text-crema truncate min-w-0">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
+        <div className="min-w-0">
+          <p className="font-body text-sm font-semibold text-crema truncate">{paquete.cliente_nombre} {paquete.cliente_apellido}</p>
+          <span className="font-body text-xs text-crema/40 flex items-center gap-1 mt-0.5"><ShoppingBag size={11} /> {paquete.total_pedidos} pedido{paquete.total_pedidos === '1' ? '' : 's'}</span>
+        </div>
         <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-body font-medium border ${cfg.cls}`} style={pulseStyle(cfg.pulse)}>{cfg.label}</span>
       </div>
 
       {/* Contenido (sin locutorio ni precios) */}
-      <div className="flex items-start gap-2 mb-3">
-        <span className="text-sm">📦</span>
-        <span className="font-body text-sm text-crema/75">{paquete.descripcion}</span>
-      </div>
-      <div className="flex items-center gap-1.5 mb-4 text-crema/40">
-        <ShoppingBag size={11} />
-        <span className="font-body text-xs">{paquete.tienda_origen}</span>
+      <div className="space-y-1.5 mb-4">
+        {descripciones.slice(0, 3).map((d, i) => (
+          <div key={i} className="flex items-center gap-2"><span className="text-xs">📦</span><span className="font-body text-xs text-crema/65 truncate">{d}</span></div>
+        ))}
+        {descripciones.length > 3 && <p className="font-body text-xs text-crema/30 pl-5">+{descripciones.length - 3} más</p>}
       </div>
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5">

@@ -1,15 +1,15 @@
 import api from './auth';
 
-/* ─── Paquetes de Tienda (warehouse España) ─── */
-export const listarPaquetesTienda   = ()         => api.get('/paquetes/tienda');
-export const pedidosSinTienda       = (clienteId) => api.get('/paquetes/tienda/pedidos-disponibles', { params: clienteId ? { clienteId } : {} });
-export const crearPaqueteTienda     = (datos)    => api.post('/paquetes/tienda', datos);
-export const actualizarEstadoTienda = (id, d)    => api.put(`/paquetes/tienda/${id}`, d);
-export const eliminarPaqueteTienda  = (id)        => api.delete(`/paquetes/tienda/${id}`);
+/* ─── Paquetes de tienda (warehouse España) — tabla `paquetes` ─── */
+export const listarPaquetesTienda   = ()         => api.get('/paquetes');
+export const pedidosSinTienda       = (clienteId) => api.get('/paquetes/disponibles-tienda', { params: clienteId ? { clienteId } : {} });
+export const crearPaqueteTienda     = (datos)    => api.post('/paquetes', datos);
+export const actualizarEstadoTienda = (id, d)    => api.put(`/paquetes/${id}`, d);
+export const eliminarPaqueteTienda  = (id)        => api.delete(`/paquetes/${id}`);
 
-/* ─── Cajas para Bolivia ─── */
+/* ─── Cajas para Bolivia — tabla `paquetes_bolivia` ─── */
 export const listarPaquetesBolivia   = ()      => api.get('/paquetes/bolivia');
-export const pedidosSinCaja          = ()      => api.get('/paquetes/bolivia/pedidos-disponibles');
+export const pedidosSinCaja          = ()      => api.get('/paquetes/disponibles');
 export const crearPaqueteBolivia     = (datos) => api.post('/paquetes/bolivia', datos);
 export const actualizarEstadoBolivia = (id, d) => api.put(`/paquetes/bolivia/${id}`, d);
 export const eliminarPaqueteBolivia  = (id)     => api.delete(`/paquetes/bolivia/${id}`);

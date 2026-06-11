@@ -1,5 +1,9 @@
 const pool = require('../config/db');
 
+/* Log detallado y homogéneo de errores SQL. */
+const logErr = (ctx, err) =>
+  console.error(`${ctx}:`, { message: err.message, code: err.code, sql: err.sql });
+
 /* Mes/año actuales por defecto */
 function periodo(req) {
   const hoy = new Date();
@@ -64,7 +68,7 @@ const resumen = async (req, res) => {
       paquetes,
     });
   } catch (err) {
-    console.error('Error en resumen financiero:', err);
+    logErr('Error en resumen financiero', err);
     res.status(500).json({ error: 'Error interno' });
   }
 };
@@ -102,7 +106,7 @@ const balanceMensual = async (req, res) => {
 
     res.json({ meses });
   } catch (err) {
-    console.error('Error en balance mensual:', err);
+    logErr('Error en balance mensual', err);
     res.status(500).json({ error: 'Error interno' });
   }
 };
@@ -120,7 +124,7 @@ const listarCompras = async (req, res) => {
     const total = rows.reduce((s, c) => s + parseFloat(c.dolares || 0), 0);
     res.json({ compras: rows, totalDolares: total });
   } catch (err) {
-    console.error('Error listando compras de dólares:', err);
+    logErr('Error listando compras de dólares', err);
     res.status(500).json({ error: 'Error interno' });
   }
 };
@@ -139,7 +143,7 @@ const crearCompra = async (req, res) => {
     const [rows] = await pool.execute('SELECT * FROM compras_dolares WHERE id = ?', [result.insertId]);
     res.status(201).json({ compra: rows[0] });
   } catch (err) {
-    console.error('Error creando compra de dólares:', err);
+    logErr('Error creando compra de dólares', err);
     res.status(500).json({ error: 'Error interno' });
   }
 };
@@ -151,7 +155,7 @@ const eliminarCompra = async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Compra no encontrada' });
     res.json({ mensaje: 'Compra eliminada' });
   } catch (err) {
-    console.error('Error eliminando compra:', err);
+    logErr('Error eliminando compra', err);
     res.status(500).json({ error: 'Error interno' });
   }
 };
